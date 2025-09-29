@@ -131,6 +131,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# Ignore temporary files and files created by Alembic
+alembic/versions/*.pyc
+alembic/versions/__pycache__/
+alembic/versions/*.pyo
+alembic/versions/*.swp
+
 # Spyder project settings
 .spyderproject
 .spyproject
