@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from app.db.unit_of_work import UnitOfWork
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.core.exceptions.user import EmailAlreadyExistsError, UserNotFoundError
 from app.core.logger import app_logger
+from app.db.unit_of_work import UnitOfWork
+from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
 
 class UserService:
@@ -23,11 +23,11 @@ class UserService:
             existing_user = await uow.user.find_one(email=user_create.email)
             if existing_user:
                 raise EmailAlreadyExistsError(user_create.email)
-            
+
             user = await uow.user.add_one(user_dict)
             user_to_return = UserResponse.model_validate(user)
             await uow.commit()
-        
+
             app_logger.info(f"Пользователь создан с ID: {user_to_return.id}")
             return user_to_return
 
@@ -37,7 +37,7 @@ class UserService:
             user = await uow.user.get_by_id(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
-                
+
             user_to_return = UserResponse.model_validate(user)
 
             app_logger.info(f"Пользователь найден: {user.email}")
@@ -61,7 +61,7 @@ class UserService:
             user = await uow.user.update(user_id, user_dict)
             if not user:
                 raise UserNotFoundError(user_id)
-            
+
             user_to_return = UserResponse.model_validate(user)
             await uow.commit()
 
@@ -74,7 +74,7 @@ class UserService:
             user = await uow.user.get_by_id(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
-            
+
             await uow.user.delete(user_id)
             await uow.commit()
 

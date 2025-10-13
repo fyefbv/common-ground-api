@@ -1,9 +1,9 @@
 import uvicorn
 from fastapi import FastAPI
 
-from app.core.logger import app_logger
 from app.api.routers import api_router
 from app.core.exception_handlers import setup_exception_handlers
+from app.core.logger import app_logger
 
 
 app = FastAPI(title="Common Ground API")

@@ -1,9 +1,11 @@
 import sys
+
 from loguru import logger
+
 
 def setup_logging():
     logger.remove()
-    
+
     logger.add(
         sys.stderr,
         format=(
@@ -18,7 +20,8 @@ def setup_logging():
         diagnose=True,
         enqueue=True,
     )
-    
+
     return logger
+
 
 app_logger = setup_logging()

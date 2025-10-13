@@ -36,6 +36,7 @@ class IRepository(ABC):
     async def delete(self, id: UUID) -> bool:
         raise NotImplementedError
 
+
 class Repository(IRepository):
     """
     Реализация репозитория

@@ -36,6 +36,7 @@ class IUnitOfWork(ABC):
 
         raise NotImplementedError
 
+
 class UnitOfWork(IUnitOfWork):
     """
     Реализация паттерна Unit of Work

@@ -5,3 +5,5 @@ pydantic_settings==2.10.1
 psycopg2==2.9.10
 asyncpg==0.30.0
 loguru==0.7.3
+black==25.9.0
+isort==7.0.0

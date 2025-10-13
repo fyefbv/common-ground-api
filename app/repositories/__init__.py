@@ -1,3 +1,4 @@
-from .base_repository import Repository
+from .base import Repository
 
-__all__ = ['Repository']
+
+__all__ = ["Repository"]
