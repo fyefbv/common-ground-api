@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from app.db.database import async_session_maker
 from app.repositories.user import UserRepository
 
+
 class IUnitOfWork(ABC):
     """
     Интерфейс для реализации паттерна Unit of Work
@@ -46,7 +47,7 @@ class UnitOfWork(IUnitOfWork):
 
     async def __aenter__(self):
         self.session = self.session_maker()
-        
+
         self.user = UserRepository(self.session)
         return self
 
