@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.core.exceptions.user import EmailAlreadyExistsError, UserNotFoundError
 from app.core.logger import app_logger
+from app.core.security import get_password_hash
 from app.db.unit_of_work import UnitOfWork
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
@@ -18,7 +19,7 @@ class UserService:
     async def create_user(self, user_create: UserCreate) -> UserResponse:
         app_logger.info(f"Создание пользователя с email: {user_create.email}")
         user_dict: dict = user_create.model_dump()
-        user_dict["password_hash"] = user_dict.pop("password")
+        user_dict["password_hash"] = get_password_hash(user_dict.pop("password"))
         async with self.uow as uow:
             existing_user = await uow.user.find_one(email=user_create.email)
             if existing_user:
@@ -56,7 +57,7 @@ class UserService:
         app_logger.info(f"Обновление пользователя с ID: {user_id}")
         user_dict: dict = user_update.model_dump()
         if "password" in user_dict:
-            user_dict["password_hash"] = user_dict.pop("password")
+            user_dict["password_hash"] = get_password_hash(user_dict.pop("password"))
         async with self.uow as uow:
             user = await uow.user.update(user_id, user_dict)
             if not user:
