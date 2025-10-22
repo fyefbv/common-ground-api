@@ -5,7 +5,6 @@ from app.api.routers import api_router
 from app.core.exception_handlers import setup_exception_handlers
 from app.core.logger import app_logger
 
-
 app = FastAPI(title="Common Ground API")
 
 setup_exception_handlers(app)

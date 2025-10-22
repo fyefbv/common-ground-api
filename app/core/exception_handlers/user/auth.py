@@ -4,22 +4,22 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions.user import (
-    AuthenticationFailedError,
-    EmailAlreadyExistsError,
-    UserNotFoundError,
+    ExpiredTokenError,
+    InvalidTokenError,
+    MissingTokenError,
 )
 from app.core.logger import app_logger
 
 
-async def user_not_found_handler(request: Request, exc: UserNotFoundError):
-    app_logger.error(f"Пользователь не найден: ID {getattr(exc, "user_id", "unknown")}")
+async def invalid_token_handler(request: Request, exc: InvalidTokenError):
+    app_logger.error("Предоставлен недействительный токен")
 
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
             "error": {
-                "code": "user_not_found",
+                "code": "invalid_token",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
@@ -27,17 +27,15 @@ async def user_not_found_handler(request: Request, exc: UserNotFoundError):
     )
 
 
-async def email_exists_handler(request: Request, exc: EmailAlreadyExistsError):
-    app_logger.warning(
-        f"Попытка создания пользователя с существующим email: {getattr(exc, "email", "unknown")}"
-    )
+async def expired_token_handler(request: Request, exc: ExpiredTokenError):
+    app_logger.error("Срок действия токена истек")
 
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
             "error": {
-                "code": "email_already_exists",
+                "code": "expired_token",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
@@ -45,17 +43,15 @@ async def email_exists_handler(request: Request, exc: EmailAlreadyExistsError):
     )
 
 
-async def authentication_failed_handler(
-    request: Request, exc: AuthenticationFailedError
-):
-    app_logger.warning("Неудачная попытка аутентификации")
+async def missing_token_handler(request: Request, exc: MissingTokenError):
+    app_logger.error("Токен отсутствует")
 
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
             "error": {
-                "code": "authentication_failed",
+                "code": "missing_token",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },

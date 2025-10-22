@@ -1,27 +1,19 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_user_service
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.api.dependencies import get_current_user_email, get_user_service
+from app.schemas.user import UserResponse, UserUpdate
 from app.services.user import UserService
-
 
 users_router = APIRouter(prefix="/users", tags=["Пользователи"])
 
 
-@users_router.post(
-    "/", response_model=UserResponse, status_code=status.HTTP_201_CREATED
-)
-async def create_user(
-    user: UserCreate, user_service: UserService = Depends(get_user_service)
-) -> UserResponse:
-    return await user_service.create_user(user)
-
-
 @users_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: UUID, user_service: UserService = Depends(get_user_service)
+    user_id: UUID,
+    user_service: UserService = Depends(get_user_service),
+    _: str = Depends(get_current_user_email),
 ) -> UserResponse:
     return await user_service.get_user(user_id)
 
@@ -29,6 +21,7 @@ async def get_user(
 @users_router.get("/", response_model=list[UserResponse])
 async def get_users(
     user_service: UserService = Depends(get_user_service),
+    _: str = Depends(get_current_user_email),
 ) -> list[UserResponse]:
     return await user_service.get_users()
 
@@ -38,13 +31,16 @@ async def update_user(
     user_id: UUID,
     user_update: UserUpdate,
     user_service: UserService = Depends(get_user_service),
+    _: str = Depends(get_current_user_email),
 ) -> UserResponse:
     return await user_service.update_user(user_id, user_update)
 
 
 @users_router.delete("/{user_id}")
 async def delete_user(
-    user_id: UUID, user_service: UserService = Depends(get_user_service)
+    user_id: UUID,
+    user_service: UserService = Depends(get_user_service),
+    _: str = Depends(get_current_user_email),
 ) -> dict:
     await user_service.delete_user(user_id)
     return {"detail": "User deleted successfully"}

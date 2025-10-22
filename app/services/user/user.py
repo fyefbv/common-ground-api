@@ -1,10 +1,14 @@
 from uuid import UUID
 
-from app.core.exceptions.user import EmailAlreadyExistsError, UserNotFoundError
+from app.core.exceptions.user import (
+    AuthenticationFailedError,
+    EmailAlreadyExistsError,
+    UserNotFoundError,
+)
 from app.core.logger import app_logger
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.db.unit_of_work import UnitOfWork
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 
 
 class UserService:
@@ -80,3 +84,19 @@ class UserService:
             await uow.commit()
 
             app_logger.info(f"Пользователь с ID {user_id} удален")
+
+    async def authenticate_user(self, user_auth: UserLogin) -> UserResponse:
+        app_logger.info(
+            f"Попытка аутентификации пользователя с email: {user_auth.email}"
+        )
+        async with self.uow as uow:
+            user = await uow.user.find_one(email=user_auth.email)
+            if not user or not verify_password(user_auth.password, user.password_hash):
+                raise AuthenticationFailedError()
+
+            user_to_return = UserResponse.model_validate(user)
+
+            app_logger.info(
+                f"Успешная аутентификация пользователя с email: {user_auth.email}"
+            )
+            return user_to_return
