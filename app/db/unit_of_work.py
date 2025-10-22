@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from app.db.database import async_session_maker
-from app.repositories.user import UserRepository
+from app.repositories.user import InterestRepository, ProfileRepository, UserRepository
 
 
 class IUnitOfWork(ABC):
@@ -11,6 +11,8 @@ class IUnitOfWork(ABC):
     """
 
     user: UserRepository
+    profile: ProfileRepository
+    interest: InterestRepository
 
     @abstractmethod
     async def __aenter__(self):
@@ -50,6 +52,8 @@ class UnitOfWork(IUnitOfWork):
         self.session = self.session_maker()
 
         self.user = UserRepository(self.session)
+        self.profile = ProfileRepository(self.session)
+        self.interest = InterestRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
