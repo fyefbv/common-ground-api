@@ -1,11 +1,16 @@
 from .auth import ExpiredTokenError, InvalidTokenError, MissingTokenError
-from .user import AuthenticationFailedError, EmailAlreadyExistsError, UserNotFoundError
+from .interest import InterestNotFoundError
+from .profile import ProfileAlreadyExistsError, ProfileNotFoundError
+from .user import AuthenticationFailedError, UserAlreadyExistsError, UserNotFoundError
 
 __all__ = [
-    "EmailAlreadyExistsError",
+    "UserAlreadyExistsError",
     "UserNotFoundError",
     "InvalidTokenError",
     "ExpiredTokenError",
     "MissingTokenError",
     "AuthenticationFailedError",
+    "InterestNotFoundError",
+    "ProfileNotFoundError",
+    "ProfileAlreadyExistsError",
 ]

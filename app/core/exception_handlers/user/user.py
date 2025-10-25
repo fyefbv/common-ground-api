@@ -5,14 +5,16 @@ from fastapi.responses import JSONResponse
 
 from app.core.exceptions.user import (
     AuthenticationFailedError,
-    EmailAlreadyExistsError,
+    UserAlreadyExistsError,
     UserNotFoundError,
 )
 from app.core.logger import app_logger
 
 
 async def user_not_found_handler(request: Request, exc: UserNotFoundError):
-    app_logger.error(f"Пользователь не найден: ID {getattr(exc, "user_id", "unknown")}")
+    app_logger.error(
+        f"Пользователь {getattr(exc, "entity_field", "unknown")} не найден"
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -27,9 +29,9 @@ async def user_not_found_handler(request: Request, exc: UserNotFoundError):
     )
 
 
-async def email_exists_handler(request: Request, exc: EmailAlreadyExistsError):
+async def user_exists_handler(request: Request, exc: UserAlreadyExistsError):
     app_logger.warning(
-        f"Попытка создания пользователя с существующим email: {getattr(exc, "email", "unknown")}"
+        f"Попытка создания пользователя с существующим email: {getattr(exc, "entity_field", "unknown")}"
     )
 
     return JSONResponse(
@@ -37,7 +39,7 @@ async def email_exists_handler(request: Request, exc: EmailAlreadyExistsError):
         content={
             "success": False,
             "error": {
-                "code": "email_already_exists",
+                "code": "user_already_exists",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },

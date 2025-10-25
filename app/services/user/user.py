@@ -2,7 +2,7 @@ from uuid import UUID
 
 from app.core.exceptions.user import (
     AuthenticationFailedError,
-    EmailAlreadyExistsError,
+    UserAlreadyExistsError,
     UserNotFoundError,
 )
 from app.core.logger import app_logger
@@ -27,7 +27,7 @@ class UserService:
         async with self.uow as uow:
             existing_user = await uow.user.find_one(email=user_create.email)
             if existing_user:
-                raise EmailAlreadyExistsError(user_create.email)
+                raise UserAlreadyExistsError(user_create.email)
 
             user = await uow.user.add_one(user_dict)
             user_to_return = UserResponse.model_validate(user)
@@ -39,7 +39,7 @@ class UserService:
     async def get_user(self, user_id: UUID) -> UserResponse:
         app_logger.info(f"Получение пользователя с ID: {user_id}")
         async with self.uow as uow:
-            user = await uow.user.get_by_id(user_id)
+            user = await uow.user.get_one(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
 
@@ -76,7 +76,7 @@ class UserService:
     async def delete_user(self, user_id: UUID) -> None:
         app_logger.info(f"Удаление пользователя с ID: {user_id}")
         async with self.uow as uow:
-            user = await uow.user.get_by_id(user_id)
+            user = await uow.user.get_one(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
 
