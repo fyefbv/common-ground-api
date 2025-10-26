@@ -15,12 +15,14 @@ auth_router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 
 
 @auth_router.post(
-    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
 )
 async def register(
-    user: UserCreate, user_service: UserService = Depends(get_user_service)
+    user_create: UserCreate, user_service: UserService = Depends(get_user_service)
 ):
-    return await user_service.create_user(user)
+    user = await user_service.create_user(user_create)
+    if user:
+        return create_tokens(user.id)
 
 
 @auth_router.post("/login", response_model=TokenResponse)
@@ -29,7 +31,7 @@ async def login(
 ):
     user = await user_service.authenticate_user(user_login)
     if user:
-        return create_tokens(user_login.email)
+        return create_tokens(user.id)
 
 
 @auth_router.post("/refresh", response_model=TokenResponse)

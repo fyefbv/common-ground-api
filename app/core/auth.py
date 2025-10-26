@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import jwt
 from fastapi.security import OAuth2PasswordBearer
@@ -16,14 +17,14 @@ REFRESH_TOKEN_EXPIRE_MINUTES = 10080
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
-def create_tokens(email: str) -> TokenResponse:
+def create_tokens(id: UUID) -> TokenResponse:
     access_token = _encode_jwt(
-        data={"sub": email},
+        data={"sub": str(id)},
         time_expires=ACCESS_TOKEN_EXPIRE_MINUTES,
         token_type="access",
     )
     refresh_token = _encode_jwt(
-        data={"sub": email},
+        data={"sub": str(id)},
         time_expires=REFRESH_TOKEN_EXPIRE_MINUTES,
         token_type="refresh",
     )

@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_current_user_email, get_user_service
+from app.api.dependencies import get_current_user, get_user_service
 from app.schemas.user import UserResponse, UserUpdate
 from app.services.user import UserService
 
@@ -13,7 +13,7 @@ users_router = APIRouter(prefix="/users", tags=["Пользователи"])
 async def get_user(
     user_id: UUID,
     user_service: UserService = Depends(get_user_service),
-    _: str = Depends(get_current_user_email),
+    _: str = Depends(get_current_user),
 ) -> UserResponse:
     return await user_service.get_user(user_id)
 
@@ -21,7 +21,7 @@ async def get_user(
 @users_router.get("/", response_model=list[UserResponse])
 async def get_users(
     user_service: UserService = Depends(get_user_service),
-    _: str = Depends(get_current_user_email),
+    _: str = Depends(get_current_user),
 ) -> list[UserResponse]:
     return await user_service.get_users()
 
@@ -31,7 +31,7 @@ async def update_user(
     user_id: UUID,
     user_update: UserUpdate,
     user_service: UserService = Depends(get_user_service),
-    _: str = Depends(get_current_user_email),
+    _: str = Depends(get_current_user),
 ) -> UserResponse:
     return await user_service.update_user(user_id, user_update)
 
@@ -40,7 +40,7 @@ async def update_user(
 async def delete_user(
     user_id: UUID,
     user_service: UserService = Depends(get_user_service),
-    _: str = Depends(get_current_user_email),
+    _: str = Depends(get_current_user),
 ) -> dict:
     await user_service.delete_user(user_id)
     return {"detail": "User deleted successfully"}

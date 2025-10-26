@@ -1,4 +1,5 @@
 from fastapi import Depends
+from uuid import UUID
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.exceptions.user import MissingTokenError
@@ -14,9 +15,9 @@ async def get_user_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> UserS
     return UserService(uow)
 
 
-async def get_current_user_email(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     if not token:
         raise MissingTokenError()
 
     payload = decode_jwt(token)
-    return payload.get("sub")
+    return UUID(payload.get("sub"))
