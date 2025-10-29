@@ -1,10 +1,11 @@
-from fastapi import Depends
 from uuid import UUID
+
+from fastapi import Depends
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.exceptions.user import MissingTokenError
 from app.db.unit_of_work import UnitOfWork
-from app.services.user import UserService
+from app.services.user import InterestService, ProfileService, UserService
 
 
 async def get_unit_of_work() -> UnitOfWork:
@@ -15,7 +16,19 @@ async def get_user_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> UserS
     return UserService(uow)
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_profile_service(
+    uow: UnitOfWork = Depends(get_unit_of_work),
+) -> ProfileService:
+    return ProfileService(uow)
+
+
+async def get_interest_service(
+    uow: UnitOfWork = Depends(get_unit_of_work),
+) -> InterestService:
+    return InterestService(uow)
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:
     if not token:
         raise MissingTokenError()
 

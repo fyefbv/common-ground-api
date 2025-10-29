@@ -33,8 +33,8 @@ def create_tokens(id: UUID) -> TokenResponse:
 
 
 def refresh_tokens(refresh_token: str) -> TokenResponse:
-    email = decode_jwt(refresh_token).get("sub")
-    new_tokens = create_tokens(email)
+    user_id = decode_jwt(refresh_token).get("sub")
+    new_tokens = create_tokens(UUID(user_id))
 
     return new_tokens
 
