@@ -17,7 +17,7 @@ class IRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_one(self, id: UUID) -> Any | None:
+    async def get_by_id(self, id: UUID) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -55,8 +55,8 @@ class Repository(IRepository):
         await self.session.refresh(instance)
         return instance
 
-    async def get_one(self, identifier: Any) -> Any | None:
-        return await self.session.get(self.model, identifier)
+    async def get_by_id(self, id: UUID) -> Any | None:
+        return await self.session.get(self.model, id)
 
     async def find_all(self, **filters) -> list[Any]:
         stmt = select(self.model)
@@ -78,8 +78,8 @@ class Repository(IRepository):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def update(self, identifier: Any, data: dict) -> Any | None:
-        instance = await self.get_one(identifier)
+    async def update(self, id: UUID, data: dict) -> Any | None:
+        instance = await self.get_by_id(id)
         if not instance:
             return None
 
@@ -91,8 +91,8 @@ class Repository(IRepository):
         await self.session.refresh(instance)
         return instance
 
-    async def delete(self, identifier: Any) -> bool:
-        instance = await self.get_one(identifier)
+    async def delete(self, id: UUID) -> bool:
+        instance = await self.get_by_id(id)
         if not instance:
             return False
 

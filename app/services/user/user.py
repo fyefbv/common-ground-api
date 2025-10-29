@@ -39,7 +39,7 @@ class UserService:
     async def get_user(self, user_id: UUID) -> UserResponse:
         app_logger.info(f"Получение пользователя с ID: {user_id}")
         async with self.uow as uow:
-            user = await uow.user.get_one(user_id)
+            user = await uow.user.get_by_id(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
 
@@ -76,7 +76,7 @@ class UserService:
     async def delete_user(self, user_id: UUID) -> None:
         app_logger.info(f"Удаление пользователя с ID: {user_id}")
         async with self.uow as uow:
-            user = await uow.user.get_one(user_id)
+            user = await uow.user.get_by_id(user_id)
             if not user:
                 raise UserNotFoundError(user_id)
 

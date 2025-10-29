@@ -4,15 +4,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
-class ProfileBase(BaseModel):
-    user_id: UUID
+class ProfileCreate(BaseModel):
+    user_id: UUID | None = None
     username: str
     bio: str | None = None
-    reputation_score: float
-
-
-class ProfileCreate(ProfileBase):
-    pass
+    reputation_score: float | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -21,9 +17,31 @@ class ProfileUpdate(BaseModel):
     reputation_score: float | None = None
 
 
-class ProfileResponse(ProfileBase):
+class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    user_id: UUID
+    username: str
+    bio: str | None = None
+    reputation_score: float
     created_at: datetime
     updated_at: datetime
+
+
+class ProfileInterestBase(BaseModel):
+    names: set[str]
+
+
+class ProfileInterestAdd(ProfileInterestBase):
+    pass
+
+
+class ProfileInterestDelete(ProfileInterestBase):
+    pass
+
+
+class ProfileInterestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ids: list[UUID]

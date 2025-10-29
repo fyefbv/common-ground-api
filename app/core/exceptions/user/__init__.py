@@ -1,6 +1,10 @@
 from .auth import ExpiredTokenError, InvalidTokenError, MissingTokenError
 from .interest import InterestNotFoundError
-from .profile import ProfileAlreadyExistsError, ProfileNotFoundError
+from .profile import (
+    ProfileAlreadyExistsError,
+    ProfileNotFoundError,
+    ProfilePermissionError,
+)
 from .user import AuthenticationFailedError, UserAlreadyExistsError, UserNotFoundError
 
 __all__ = [
@@ -13,4 +17,5 @@ __all__ = [
     "InterestNotFoundError",
     "ProfileNotFoundError",
     "ProfileAlreadyExistsError",
+    "ProfilePermissionError",
 ]

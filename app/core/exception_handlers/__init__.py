@@ -10,6 +10,7 @@ from app.core.exceptions.user import (
     MissingTokenError,
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
+    ProfilePermissionError,
     UserAlreadyExistsError,
     UserNotFoundError,
 )
@@ -27,6 +28,7 @@ from .user import (
     missing_token_handler,
     profile_exists_handler,
     profile_not_found_handler,
+    profile_permission_handler,
     user_exists_handler,
     user_not_found_handler,
 )
@@ -45,6 +47,7 @@ def setup_exception_handlers(app: FastAPI):
     app.add_exception_handler(InterestNotFoundError, interest_not_found_handler)
     app.add_exception_handler(ProfileNotFoundError, profile_not_found_handler)
     app.add_exception_handler(ProfileAlreadyExistsError, profile_exists_handler)
+    app.add_exception_handler(ProfilePermissionError, profile_permission_handler)
 
     # Системные исключения
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
