@@ -3,13 +3,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from app.api.dependencies import get_current_user, get_profile_service
+from app.api.dependencies import (
+    get_accept_language,
+    get_current_user,
+    get_profile_service,
+)
 from app.schemas.user import (
     InterestResponse,
     ProfileCreate,
     ProfileInterestAdd,
     ProfileInterestDelete,
-    ProfileInterestResponse,
     ProfileResponse,
     ProfileUpdate,
 )
@@ -79,9 +82,10 @@ async def delete_profile(
 async def get_profile_interests(
     username: str,
     profile_service: ProfileService = Depends(get_profile_service),
+    accept_language: str = Depends(get_accept_language),
     _: UUID = Depends(get_current_user),
 ) -> list[InterestResponse]:
-    return await profile_service.get_profile_interests(username)
+    return await profile_service.get_profile_interests(username, accept_language)
 
 
 @profiles_router.post("/{username}/interests")
@@ -89,9 +93,15 @@ async def add_profile_interests(
     username: str,
     profile_interest_add: ProfileInterestAdd,
     profile_service: ProfileService = Depends(get_profile_service),
+    accept_language: str = Depends(get_accept_language),
     user: UUID = Depends(get_current_user),
 ) -> JSONResponse:
-    await profile_service.add_profile_interests(username, profile_interest_add, user)
+    await profile_service.add_profile_interests(
+        username=username,
+        profile_interest_add=profile_interest_add,
+        user_id=user,
+        accept_language=accept_language,
+    )
     return {"detail": "Profile interests added successfully"}
 
 
@@ -100,9 +110,13 @@ async def delete_profile_interests(
     username: str,
     profile_interest_delete: ProfileInterestDelete,
     profile_service: ProfileService = Depends(get_profile_service),
+    accept_language: str = Depends(get_accept_language),
     user: UUID = Depends(get_current_user),
 ) -> JSONResponse:
     await profile_service.delete_profile_interests(
-        username, profile_interest_delete, user
+        username=username,
+        profile_interest_delete=profile_interest_delete,
+        user_id=user,
+        accept_language=accept_language,
     )
     return {"detail": "Profile interests deleted successfully"}

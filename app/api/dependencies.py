@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Header
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.exceptions.user import MissingTokenError
@@ -34,3 +34,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:
 
     payload = decode_jwt(token)
     return UUID(payload.get("sub"))
+
+
+async def get_accept_language(accept_language: str = Header(default="en")):
+    return accept_language
