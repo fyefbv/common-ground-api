@@ -117,27 +117,37 @@ class ProfileService:
             )
             return profiles_to_return
 
-    async def get_profile_interests(self, username: str) -> list[InterestResponse]:
+    async def get_profile_interests(
+        self, username: str, accept_language: str
+    ) -> list[InterestResponse]:
         app_logger.info(f"Получение интересов профиля: {username}")
         async with self.uow as uow:
             profile = await uow.profile.find_one(username=username)
             if not profile:
                 raise ProfileNotFoundError(username)
 
-            profile_interests = await uow.profile.get_profile_interests(username)
+            profile_interests = await uow.profile.get_profile_interests(
+                username, accept_language
+            )
 
             app_logger.info(
                 f"Найдено {len(profile_interests)} интересов для профиля: {username}"
             )
 
             profile_interests_to_return = [
-                InterestResponse.model_validate(interest)
+                InterestResponse(
+                    id=interest.id, name=interest.name_translations[accept_language]
+                )
                 for interest in profile_interests
             ]
             return profile_interests_to_return
 
     async def add_profile_interests(
-        self, username: str, profile_interest_add: ProfileInterestAdd, user_id: UUID
+        self,
+        username: str,
+        profile_interest_add: ProfileInterestAdd,
+        user_id: UUID,
+        accept_language: str,
     ) -> None:
         app_logger.info(f"Добавление интересов к профилю: {username}")
         async with self.uow as uow:
@@ -148,8 +158,13 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
-            profile_interests = await uow.profile.get_profile_interests(username)
-            existing_interest_names = [interest.name for interest in profile_interests]
+            profile_interests = await uow.profile.get_profile_interests(
+                username, accept_language
+            )
+            existing_interest_names = [
+                interest.name_translations[accept_language]
+                for interest in profile_interests
+            ]
 
             interests_to_add = [
                 name
@@ -158,7 +173,7 @@ class ProfileService:
             ]
 
             interest_ids = await InterestService.get_interests_ids_by_names(
-                interests_to_add, uow.session
+                interests_to_add, accept_language, uow.session
             )
 
             await uow.profile.add_profile_interests_by_ids(profile.id, interest_ids)
@@ -172,6 +187,7 @@ class ProfileService:
         username: str,
         profile_interest_delete: ProfileInterestDelete,
         user_id: UUID,
+        accept_language: str,
     ) -> None:
         app_logger.info(f"Удаление всех интересов профиля: {username}")
         async with self.uow as uow:
@@ -182,8 +198,13 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
-            profile_interests = await uow.profile.get_profile_interests(username)
-            existing_interest_names = [interest.name for interest in profile_interests]
+            profile_interests = await uow.profile.get_profile_interests(
+                username, accept_language
+            )
+            existing_interest_names = [
+                interest.name_translations[accept_language]
+                for interest in profile_interests
+            ]
 
             interests_to_delete = [
                 name
@@ -192,7 +213,7 @@ class ProfileService:
             ]
 
             interest_ids = await InterestService.get_interests_ids_by_names(
-                interests_to_delete, uow.session
+                interests_to_delete, accept_language, uow.session
             )
 
             await uow.profile.delete_profile_interests_by_ids(profile.id, interest_ids)

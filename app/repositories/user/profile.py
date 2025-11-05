@@ -14,12 +14,15 @@ class ProfileRepository(Repository):
 
     model = Profile
 
-    async def get_profile_interests(self, username: str) -> list[Interest]:
+    async def get_profile_interests(
+        self, username: str, accept_language: str
+    ) -> list[Interest]:
         stmt = (
             select(Interest)
             .join(ProfileInterest, ProfileInterest.interest_id == Interest.id)
             .join(Profile, Profile.id == ProfileInterest.profile_id)
             .where(Profile.username == username)
+            .where(Interest.name_translations[accept_language].astext.is_not(None))
         )
 
         result = await self.session.execute(stmt)
