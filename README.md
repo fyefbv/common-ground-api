@@ -1,4 +1,4 @@
-# CommonGround API
+# Common Ground API
 
 > 🚀 Backend-репозиторий для приложения CommonGround — платформы для тематического общения и нетворкинга.
 
@@ -21,6 +21,105 @@
 *   **Real-time уведомления:** Мгновенные оповещения о новых сообщениях и событиях.
 *   **RESTful & WebSocket API:** Полностью асинхронное и высокопроизводительное API.
 
+## 📋 Описание эндпоинтов
+
+### Аутентификация
+
+- **POST /auth/register**
+  - **Описание:** Регистрация нового пользователя.
+  - **Принимает:** `{"email": "string", "password": "string"}`
+  - **Возвращает:** `{"access_token": "string", "refresh_token": "string"}`
+
+- **POST /auth/login**
+  - **Описание:** Вход пользователя.
+  - **Принимает:** `{"email": "string", "password": "string"}`
+  - **Возвращает:** `{"access_token": "string", "refresh_token": "string"}`
+
+- **POST /auth/refresh**
+  - **Описание:** Обновление токена.
+  - **Принимает:** `{"token": "string"}`
+  - **Возвращает:** `{"access_token": "string", "refresh_token": "string"}`
+
+### Пользователи
+
+- **GET /users/me**
+  - **Описание:** Получение информации о текущем пользователе.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `{"id": "uuid", "email": "string", "created_at": "datetime", "updated_at": "datetime"}`
+
+- **PUT /users/me**
+  - **Описание:** Обновление информации о текущем пользователе.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Принимает:** `{"email": "string", "password": "string"}`
+  - **Возвращает:** `{"id": "uuid", "email": "string", "created_at": "datetime", "updated_at": "datetime"}`
+
+- **DELETE /users/me**
+  - **Описание:** Удаление текущего пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `{"detail": "User deleted successfully"}`
+
+### Профили
+
+- **GET /profiles/**
+  - **Описание:** Получение всех профилей.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `[{"id": "uuid", "user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float", "created_at": "datetime", "updated_at": "datetime"}]`
+
+- **POST /profiles/**
+  - **Описание:** Создание нового профиля.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Принимает:** `{"user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float"}`
+  - **Возвращает:** `{"id": "uuid", "user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float", "created_at": "datetime", "updated_at": "datetime"}`
+
+- **GET /profiles/me**
+  - **Описание:** Получение всех профилей текущего пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `[{"id": "uuid", "user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float", "created_at": "datetime", "updated_at": "datetime"}]`
+
+- **GET /profiles/{username}**
+  - **Описание:** Получение профиля по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `{"id": "uuid", "user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float", "created_at": "datetime", "updated_at": "datetime"}`
+
+- **PUT /profiles/{username}**
+  - **Описание:** Обновление профиля по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Принимает:** `{"username": "string", "bio": "string", "reputation_score": "float"}`
+  - **Возвращает:** `{"id": "uuid", "user_id": "uuid", "username": "string", "bio": "string", "reputation_score": "float", "created_at": "datetime", "updated_at": "datetime"}`
+
+- **DELETE /profiles/{username}**
+  - **Описание:** Удаление профиля по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `{"detail": "Profile deleted successfully"}`
+
+- **GET /profiles/{username}/interests**
+  - **Описание:** Получение интересов профиля по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `[{"id": "uuid", "name": "string"}]`
+  - **Заголовок:** `Accept-Language: <language_code>` (по умолчанию используется английская локализация)
+
+- **POST /profiles/{username}/interests**
+  - **Описание:** Добавление интересов к профилю по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Принимает:** `{"names": ["string"]}`
+  - **Возвращает:** `{"detail": "Profile interests added successfully"}`
+  - **Заголовок:** `Accept-Language: <language_code>` (по умолчанию используется английская локализация)
+
+- **DELETE /profiles/{username}/interests**
+  - **Описание:** Удаление интересов из профиля по имени пользователя.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Принимает:** `{"names": ["string"]}`
+  - **Возвращает:** `{"detail": "Profile interests deleted successfully"}`
+  - **Заголовок:** `Accept-Language: <language_code>` (по умолчанию используется английская локализация)
+
+### Интересы
+
+- **GET /interests/**
+  - **Описание:** Получение всех интересов.
+  - **Требует:** `Authorization: Bearer <jwt_token>`
+  - **Возвращает:** `[{"id": "uuid", "name": "string"}]`
+  - **Заголовок:** `Accept-Language: <language_code>` (по умолчанию используется английская локализация)
+
 ## 📦 Быстрый старт
 
 1.  Клонируйте репозиторий:
@@ -34,7 +133,12 @@
     pip install -r requirements.txt
     ```
 
-3.  Запустите сервер для разработки:
+3.  Примените миграции:
+    ```bash
+    alembic upgrade head
+    ```
+
+4.  Запустите сервер для разработки:
     ```bash
     uvicorn app.main:app --reload
     ```
