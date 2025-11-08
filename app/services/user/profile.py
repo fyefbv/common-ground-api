@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import UUID
 
 from app.core.exceptions.user.profile import (
@@ -174,7 +173,7 @@ class ProfileService:
                 interests_to_add, accept_language, uow.session
             )
 
-            await uow.profile.add_profile_interests_by_ids(profile.id, interest_ids)
+            await uow.profile_interest.add_by_ids(profile.id, interest_ids)
 
             await uow.commit()
 
@@ -214,7 +213,7 @@ class ProfileService:
                 interests_to_delete, accept_language, uow.session
             )
 
-            await uow.profile.delete_profile_interests_by_ids(profile.id, interest_ids)
+            await uow.profile_interest.delete_by_ids(profile.id, interest_ids)
 
             await uow.commit()
 
