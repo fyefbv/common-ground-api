@@ -96,7 +96,9 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
+            await uow.profile_interest.delete_by_profile_id(profile.id)
             await uow.profile.delete(profile.id)
+
             await uow.commit()
 
             app_logger.info(f"Профиль {username} удален")

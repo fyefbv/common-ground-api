@@ -31,3 +31,7 @@ class ProfileInterestRepository(Repository):
                 self.model.interest_id.in_(interest_ids),
             )
             await self.session.execute(delete_stmt)
+
+    async def delete_by_profile_id(self, profile_id: UUID) -> None:
+        stmt = delete(self.model).where(self.model.profile_id == profile_id)
+        await self.session.execute(stmt)
