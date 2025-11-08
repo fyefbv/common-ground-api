@@ -13,7 +13,6 @@ from app.schemas.user import (
     ProfileCreate,
     ProfileInterestAdd,
     ProfileInterestDelete,
-    ProfileInterestResponse,
     ProfileResponse,
     ProfileUpdate,
 )
@@ -80,9 +79,8 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
-            updated_profile = await uow.profile.update(
-                profile.id, profile_update.model_dump()
-            )
+            update_dict = profile_update.model_dump(exclude_unset=True)
+            updated_profile = await uow.profile.update(profile.id, update_dict)
             profile_to_return = ProfileResponse.model_validate(updated_profile)
             await uow.commit()
 

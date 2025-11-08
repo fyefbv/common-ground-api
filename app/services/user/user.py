@@ -59,7 +59,7 @@ class UserService:
 
     async def update_user(self, user_id: UUID, user_update: UserUpdate) -> UserResponse:
         app_logger.info(f"Обновление пользователя с ID: {user_id}")
-        user_dict: dict = user_update.model_dump()
+        user_dict: dict = user_update.model_dump(exclude_unset=True)
         if "password" in user_dict:
             user_dict["password_hash"] = get_password_hash(user_dict.pop("password"))
         async with self.uow as uow:

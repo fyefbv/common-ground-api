@@ -39,9 +39,3 @@ class ProfileInterestAdd(ProfileInterestBase):
 
 class ProfileInterestDelete(ProfileInterestBase):
     pass
-
-
-class ProfileInterestResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    ids: list[UUID]

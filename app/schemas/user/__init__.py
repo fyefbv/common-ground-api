@@ -5,7 +5,6 @@ from .profile import (
     ProfileInterestAdd,
     ProfileInterestBase,
     ProfileInterestDelete,
-    ProfileInterestResponse,
     ProfileResponse,
     ProfileUpdate,
 )
@@ -24,7 +23,6 @@ __all__ = [
     "ProfileResponse",
     "ProfileUpdate",
     "ProfileInterestBase",
-    "ProfileInterestResponse",
     "ProfileInterestAdd",
     "ProfileInterestDelete",
 ]
