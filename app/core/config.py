@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     DB_NAME: str
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str
+    S3_ACCESS_KEY_ID: str
+    S3_SECRET_ACCESS_KEY: str
+    S3_ENDPOINT_URL: str
+    S3_BUCKET_NAME: str
 
     @property
     def ASYNC_DATABASE_URL(self):

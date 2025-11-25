@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
@@ -15,6 +15,7 @@ from app.schemas.user import (
     ProfileInterestDelete,
     ProfileResponse,
     ProfileUpdate,
+    ProfileAvatarResponse,
 )
 from app.services.user import ProfileService
 
@@ -76,6 +77,33 @@ async def delete_profile(
 ) -> JSONResponse:
     await profile_service.delete_profile(username, user)
     return {"detail": "Profile deleted successfully"}
+
+
+@profiles_router.post("/{username}/avatar", response_model=ProfileAvatarResponse)
+async def upload_avatar(
+    username: str,
+    file: UploadFile = File(),
+    profile_service: ProfileService = Depends(get_profile_service),
+    user: UUID = Depends(get_current_user),
+) -> ProfileAvatarResponse:
+    file_data = await file.read()
+
+    return await profile_service.upload_avatar(
+        username=username,
+        user_id=user,
+        file_data=file_data,
+        content_type=file.content_type,
+    )
+
+
+@profiles_router.delete("/{username}/avatar")
+async def delete_avatar(
+    username: str,
+    profile_service: ProfileService = Depends(get_profile_service),
+    user: UUID = Depends(get_current_user),
+) -> JSONResponse:
+    await profile_service.delete_avatar(username, user)
+    return {"detail": "Profile avatar deleted successfully"}
 
 
 @profiles_router.get("/{username}/interests", response_model=list[InterestResponse])

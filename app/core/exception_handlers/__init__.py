@@ -2,6 +2,12 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
+from app.core.exceptions.object_storage import (
+    ObjectDeleteError,
+    ObjectUploadError,
+    ObjectListGetError,
+)
 from app.core.exceptions.user import (
     AuthenticationFailedError,
     ExpiredTokenError,
@@ -15,6 +21,12 @@ from app.core.exceptions.user import (
     UserNotFoundError,
 )
 
+from .file import file_too_large_handler, unsupported_media_type_handler
+from .object_storage import (
+    object_delete_handler,
+    object_upload_handler,
+    object_list_get_handler,
+)
 from .system import (
     general_exception_handler,
     sqlalchemy_exception_handler,
@@ -53,3 +65,12 @@ def setup_exception_handlers(app: FastAPI):
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
+
+    # Исключения объектного хранилища
+    app.add_exception_handler(ObjectUploadError, object_upload_handler)
+    app.add_exception_handler(ObjectDeleteError, object_delete_handler)
+    app.add_exception_handler(ObjectListGetError, object_list_get_handler)
+
+    # Файловые исключения
+    app.add_exception_handler(UnsupportedMediaTypeError, unsupported_media_type_handler)
+    app.add_exception_handler(FileTooLargeError, file_too_large_handler)

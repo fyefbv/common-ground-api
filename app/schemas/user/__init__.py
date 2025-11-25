@@ -7,6 +7,7 @@ from .profile import (
     ProfileInterestDelete,
     ProfileResponse,
     ProfileUpdate,
+    ProfileAvatarResponse,
 )
 from .user import UserBase, UserCreate, UserLogin, UserResponse, UserUpdate
 
@@ -25,4 +26,5 @@ __all__ = [
     "ProfileInterestBase",
     "ProfileInterestAdd",
     "ProfileInterestDelete",
+    "ProfileAvatarResponse",
 ]

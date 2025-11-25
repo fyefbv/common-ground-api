@@ -27,6 +27,12 @@ class ProfileResponse(BaseModel):
     reputation_score: float
     created_at: datetime
     updated_at: datetime
+    avatar_url: str | None = None
+
+class ProfileAvatarResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    avatar_url: str | None = None
 
 
 class ProfileInterestBase(BaseModel):
