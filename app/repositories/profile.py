@@ -1,19 +1,16 @@
 from sqlalchemy import select
 
-from app.db.models.user import Interest, Profile, ProfileInterest
+from app.db.models.interest import Interest
+from app.db.models.profile import Profile
+from app.db.models.profile_interest import ProfileInterest
 from app.repositories.base import Repository
 
 
 class ProfileRepository(Repository):
-    """
-    Репозиторий для работы с профилями.
-    Наследует базовый репозиторий и использует модель Profile.
-    """
-
     model = Profile
 
     async def get_profile_interests(
-        self, username: str, accept_language: str
+        self, username: str, accept_language: str = "en"
     ) -> list[Interest]:
         stmt = (
             select(Interest)

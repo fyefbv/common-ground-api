@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from app.db.database import async_session_maker
-from app.repositories.user import (
+from app.repositories import (
     InterestRepository,
     ProfileInterestRepository,
     ProfileRepository,

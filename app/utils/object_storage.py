@@ -6,8 +6,8 @@ from botocore.exceptions import ClientError
 
 from app.core.exceptions.object_storage import (
     ObjectDeleteError,
-    ObjectUploadError,
     ObjectListGetError,
+    ObjectUploadError,
 )
 from app.core.logger import app_logger
 
@@ -30,9 +30,7 @@ class ObjectStorageService:
             config=Config(signature_version="s3v4"),
         )
 
-    async def upload_avatar(
-        self, profile_id: UUID, file_data: bytes
-    ) -> str:
+    async def upload_avatar(self, profile_id: UUID, file_data: bytes) -> str:
         try:
             key = f"users/{profile_id}.jpg"
 
@@ -100,7 +98,7 @@ class ObjectStorageService:
                     result[profile_id] = self._generate_presigned_url(key)
                 else:
                     result[profile_id] = None
-            
+
             return result
         except ClientError as e:
             app_logger.error(f"Ошибка при получении списка аватарок: {e}")

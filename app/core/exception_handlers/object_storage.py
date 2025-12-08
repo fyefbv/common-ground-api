@@ -5,11 +5,10 @@ from fastapi.responses import JSONResponse
 
 from app.core.exceptions.object_storage import (
     ObjectDeleteError,
-    ObjectUploadError,
     ObjectListGetError,
+    ObjectUploadError,
 )
 from app.core.logger import app_logger
-
 
 # async def object_not_found_handler(request: Request, exc: ObjectNotFoundError):
 #     app_logger.warning(f"Object not found: {exc.detail}")

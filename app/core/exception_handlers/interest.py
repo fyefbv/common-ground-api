@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.core.exceptions.user import InterestNotFoundError
+from app.core.exceptions.interest import InterestNotFoundError
 from app.core.logger import app_logger
 
 

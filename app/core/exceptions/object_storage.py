@@ -1,6 +1,5 @@
 from fastapi import HTTPException, status
 
-
 # class ObjectNotFoundError(HTTPException):
 #     def __init__(self, object_name: str):
 #         super().__init__(

@@ -7,8 +7,8 @@ from app.api.dependencies import (
     get_current_user,
     get_interest_service,
 )
-from app.schemas.user import InterestResponse
-from app.services.user import InterestService
+from app.schemas.interest import InterestResponse
+from app.services.interest import InterestService
 
 interests_router = APIRouter(prefix="/interests", tags=["Интересы"])
 

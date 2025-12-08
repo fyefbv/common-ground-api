@@ -4,9 +4,9 @@ from fastapi import Depends, Header
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.config import settings
-from app.core.exceptions.user import MissingTokenError
+from app.core.exceptions.auth import MissingTokenError
 from app.db.unit_of_work import UnitOfWork
-from app.services.user import InterestService, ProfileService, UserService
+from app.services import InterestService, ProfileService, UserService
 from app.utils.object_storage import ObjectStorageService
 
 

@@ -2,9 +2,9 @@ import uuid
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.models import Base
+from app.db.database import Base
 
 
 class ProfileInterest(Base):
@@ -20,6 +20,3 @@ class ProfileInterest(Base):
         ForeignKey("interests.id", ondelete="CASCADE"),
         primary_key=True,
     )
-
-    profile = relationship("Profile", back_populates="interests")
-    interest = relationship("Interest", back_populates="profiles")

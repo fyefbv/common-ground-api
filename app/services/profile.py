@@ -1,32 +1,26 @@
 from uuid import UUID
 
 from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
-from app.core.exceptions.user.profile import (
+from app.core.exceptions.profile import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
     ProfilePermissionError,
 )
 from app.core.logger import app_logger
 from app.db.unit_of_work import UnitOfWork
-from app.schemas.user import (
-    InterestResponse,
+from app.schemas.interest import InterestResponse
+from app.schemas.profile import (
+    ProfileAvatarResponse,
     ProfileCreate,
-    ProfileInterestAdd,
-    ProfileInterestDelete,
     ProfileResponse,
     ProfileUpdate,
-    ProfileAvatarResponse
 )
-from app.services.user import InterestService
+from app.schemas.profile_interest import ProfileInterestAdd, ProfileInterestDelete
+from app.services.interest import InterestService
 from app.utils.object_storage import ObjectStorageService
 
 
 class ProfileService:
-    """
-    Сервис для управления профилями.
-    Обеспечивает создание, получение, обновление и удаление профилей.
-    """
-
     def __init__(self, uow: UnitOfWork, object_storage_service: ObjectStorageService):
         self.uow = uow
         self.object_storage_service = object_storage_service
@@ -126,7 +120,9 @@ class ProfileService:
                 profile.id, file_data
             )
 
-            avatar_to_return = ProfileAvatarResponse.model_validate({"avatar_url": avatar_url})
+            avatar_to_return = ProfileAvatarResponse.model_validate(
+                {"avatar_url": avatar_url}
+            )
 
             return avatar_to_return
 
@@ -216,7 +212,6 @@ class ProfileService:
         username: str,
         profile_interest_add: ProfileInterestAdd,
         user_id: UUID,
-        accept_language: str,
     ) -> None:
         app_logger.info(f"Добавление интересов к профилю: {username}")
         async with self.uow as uow:
@@ -227,25 +222,15 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
-            profile_interests = await uow.profile.get_profile_interests(
-                username, accept_language
-            )
-            existing_interest_names = [
-                interest.name_translations[accept_language]
-                for interest in profile_interests
-            ]
+            profile_interests = await uow.profile.get_profile_interests(username)
+
+            existing_interest_ids = [interest.id for interest in profile_interests]
 
             interests_to_add = [
-                name
-                for name in profile_interest_add.names
-                if name not in existing_interest_names
+                id for id in profile_interest_add.ids if id not in existing_interest_ids
             ]
 
-            interest_ids = await InterestService.get_interests_ids_by_names(
-                interests_to_add, accept_language, uow.session
-            )
-
-            await uow.profile_interest.add_by_ids(profile.id, interest_ids)
+            await uow.profile_interest.add_by_ids(profile.id, interests_to_add)
 
             await uow.commit()
 
@@ -256,7 +241,6 @@ class ProfileService:
         username: str,
         profile_interest_delete: ProfileInterestDelete,
         user_id: UUID,
-        accept_language: str,
     ) -> None:
         app_logger.info(f"Удаление всех интересов профиля: {username}")
         async with self.uow as uow:
@@ -267,28 +251,18 @@ class ProfileService:
             if profile.user_id != user_id:
                 raise ProfilePermissionError(username)
 
-            profile_interests = await uow.profile.get_profile_interests(
-                username, accept_language
-            )
-            existing_interest_names = [
-                interest.name_translations[accept_language]
-                for interest in profile_interests
-            ]
+            profile_interests = await uow.profile.get_profile_interests(username)
+
+            existing_interest_ids = [interest.id for interest in profile_interests]
 
             interests_to_delete = [
-                name
-                for name in profile_interest_delete.names
-                if name in existing_interest_names
+                id for id in profile_interest_delete.ids if id in existing_interest_ids
             ]
 
-            interest_ids = await InterestService.get_interests_ids_by_names(
-                interests_to_delete, accept_language, uow.session
-            )
-
-            await uow.profile_interest.delete_by_ids(profile.id, interest_ids)
+            await uow.profile_interest.delete_by_ids(profile.id, interests_to_delete)
 
             await uow.commit()
 
             app_logger.info(
-                f"Удалено {len(interest_ids)} интересов из профиля {username}"
+                f"Удалено {len(profile_interest_delete.ids)} интересов из профиля {username}"
             )

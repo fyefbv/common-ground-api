@@ -1,9 +1,9 @@
 import uuid
 
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.models import Base
+from app.db.database import Base
 
 
 class Interest(Base):
@@ -13,5 +13,3 @@ class Interest(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name_translations: Mapped[dict] = mapped_column(JSONB, unique=True, nullable=False)
-
-    profiles = relationship("ProfileInterest", back_populates="interest")

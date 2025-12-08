@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.models import Base
+from app.db.database import Base
 
 
 class Profile(Base):
@@ -31,5 +31,3 @@ class Profile(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-
-    interests = relationship("ProfileInterest", back_populates="profile")

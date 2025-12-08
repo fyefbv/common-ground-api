@@ -2,16 +2,11 @@ from uuid import UUID
 
 from sqlalchemy import delete, insert
 
-from app.db.models.user import ProfileInterest
+from app.db.models.profile_interest import ProfileInterest
 from app.repositories.base import Repository
 
 
 class ProfileInterestRepository(Repository):
-    """
-    Репозиторий для работы с профильными интересами.
-    Наследует базовый репозиторий и использует модель ProfileInterest.
-    """
-
     model = ProfileInterest
 
     async def add_by_ids(self, profile_id: UUID, interest_ids: list[UUID]) -> None:

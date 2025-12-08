@@ -12,11 +12,6 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 
 
 class UserService:
-    """
-    Сервис для управления пользователями.
-    Обеспечивает создание, получение, обновление и удаление пользователей.
-    """
-
     def __init__(self, uow: UnitOfWork):
         self.uow = uow
 

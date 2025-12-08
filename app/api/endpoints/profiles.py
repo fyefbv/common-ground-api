@@ -8,16 +8,15 @@ from app.api.dependencies import (
     get_current_user,
     get_profile_service,
 )
-from app.schemas.user import (
-    InterestResponse,
+from app.schemas.interest import InterestResponse
+from app.schemas.profile import (
+    ProfileAvatarResponse,
     ProfileCreate,
-    ProfileInterestAdd,
-    ProfileInterestDelete,
     ProfileResponse,
     ProfileUpdate,
-    ProfileAvatarResponse,
 )
-from app.services.user import ProfileService
+from app.schemas.profile_interest import ProfileInterestAdd, ProfileInterestDelete
+from app.services.profile import ProfileService
 
 profiles_router = APIRouter(prefix="/profiles", tags=["Профили"])
 
@@ -121,14 +120,12 @@ async def add_profile_interests(
     username: str,
     profile_interest_add: ProfileInterestAdd,
     profile_service: ProfileService = Depends(get_profile_service),
-    accept_language: str = Depends(get_accept_language),
     user: UUID = Depends(get_current_user),
 ) -> JSONResponse:
     await profile_service.add_profile_interests(
         username=username,
         profile_interest_add=profile_interest_add,
         user_id=user,
-        accept_language=accept_language,
     )
     return {"detail": "Profile interests added successfully"}
 
@@ -138,13 +135,11 @@ async def delete_profile_interests(
     username: str,
     profile_interest_delete: ProfileInterestDelete,
     profile_service: ProfileService = Depends(get_profile_service),
-    accept_language: str = Depends(get_accept_language),
     user: UUID = Depends(get_current_user),
 ) -> JSONResponse:
     await profile_service.delete_profile_interests(
         username=username,
         profile_interest_delete=profile_interest_delete,
         user_id=user,
-        accept_language=accept_language,
     )
     return {"detail": "Profile interests deleted successfully"}

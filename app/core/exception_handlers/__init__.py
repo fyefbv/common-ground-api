@@ -2,47 +2,57 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
-from app.core.exceptions.object_storage import (
-    ObjectDeleteError,
-    ObjectUploadError,
-    ObjectListGetError,
+from app.core.exception_handlers.auth import (
+    expired_token_handler,
+    invalid_token_handler,
+    missing_token_handler,
 )
-from app.core.exceptions.user import (
-    AuthenticationFailedError,
-    ExpiredTokenError,
-    InterestNotFoundError,
-    InvalidTokenError,
-    MissingTokenError,
-    ProfileAlreadyExistsError,
-    ProfileNotFoundError,
-    ProfilePermissionError,
-    UserAlreadyExistsError,
-    UserNotFoundError,
+from app.core.exception_handlers.file import (
+    file_too_large_handler,
+    unsupported_media_type_handler,
 )
-
-from .file import file_too_large_handler, unsupported_media_type_handler
-from .object_storage import (
+from app.core.exception_handlers.interest import interest_not_found_handler
+from app.core.exception_handlers.object_storage import (
     object_delete_handler,
-    object_upload_handler,
     object_list_get_handler,
+    object_upload_handler,
 )
-from .system import (
+from app.core.exception_handlers.profile import (
+    profile_exists_handler,
+    profile_not_found_handler,
+    profile_permission_handler,
+)
+from app.core.exception_handlers.system import (
     general_exception_handler,
     sqlalchemy_exception_handler,
     validation_exception_handler,
 )
-from .user import (
+from app.core.exception_handlers.user import (
     authentication_failed_handler,
-    expired_token_handler,
-    interest_not_found_handler,
-    invalid_token_handler,
-    missing_token_handler,
-    profile_exists_handler,
-    profile_not_found_handler,
-    profile_permission_handler,
     user_exists_handler,
     user_not_found_handler,
+)
+from app.core.exceptions.auth import (
+    ExpiredTokenError,
+    InvalidTokenError,
+    MissingTokenError,
+)
+from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
+from app.core.exceptions.interest import InterestNotFoundError
+from app.core.exceptions.object_storage import (
+    ObjectDeleteError,
+    ObjectListGetError,
+    ObjectUploadError,
+)
+from app.core.exceptions.profile import (
+    ProfileAlreadyExistsError,
+    ProfileNotFoundError,
+    ProfilePermissionError,
+)
+from app.core.exceptions.user import (
+    AuthenticationFailedError,
+    UserAlreadyExistsError,
+    UserNotFoundError,
 )
 
 

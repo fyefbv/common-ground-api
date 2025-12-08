@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     S3_SECRET_ACCESS_KEY: str
     S3_ENDPOINT_URL: str
     S3_BUCKET_NAME: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     @property
     def ASYNC_DATABASE_URL(self):
