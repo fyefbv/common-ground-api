@@ -13,6 +13,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     app_logger.warning(f"Ошибка валидации запроса: {exc.errors()}")
 
+    errors = []
+    for error in exc.errors():
+        error_dict = error.copy()
+        if "ctx" in error_dict and isinstance(error_dict["ctx"], dict):
+            error_dict["ctx"] = {k: str(v) for k, v in error_dict["ctx"].items()}
+        errors.append(error_dict)
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -20,7 +27,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "code": "validation_error",
                 "message": "Validation failed",
-                "details": exc.errors(),
+                "details": errors,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         },

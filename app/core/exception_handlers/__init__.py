@@ -22,6 +22,18 @@ from app.core.exception_handlers.profile import (
     profile_not_found_handler,
     profile_permission_handler,
 )
+from app.core.exception_handlers.room import (
+    message_not_found_handler,
+    not_room_member_handler,
+    participant_banned_handler,
+    participant_muted_handler,
+    participant_not_found_handler,
+    room_exists_handler,
+    room_full_handler,
+    room_not_found_handler,
+    room_permission_handler,
+    room_private_handler,
+)
 from app.core.exception_handlers.system import (
     general_exception_handler,
     sqlalchemy_exception_handler,
@@ -49,6 +61,18 @@ from app.core.exceptions.profile import (
     ProfileNotFoundError,
     ProfilePermissionError,
 )
+from app.core.exceptions.room import (
+    NotRoomMemberError,
+    ParticipantBannedError,
+    ParticipantMutedError,
+    RoomAlreadyExistsError,
+    RoomFullError,
+    RoomMessageNotFoundError,
+    RoomNotFoundError,
+    RoomParticipantNotFoundError,
+    RoomPermissionError,
+    RoomPrivateError,
+)
 from app.core.exceptions.user import (
     AuthenticationFailedError,
     UserAlreadyExistsError,
@@ -70,6 +94,20 @@ def setup_exception_handlers(app: FastAPI):
     app.add_exception_handler(ProfileNotFoundError, profile_not_found_handler)
     app.add_exception_handler(ProfileAlreadyExistsError, profile_exists_handler)
     app.add_exception_handler(ProfilePermissionError, profile_permission_handler)
+
+    # Исключения комнат
+    app.add_exception_handler(RoomNotFoundError, room_not_found_handler)
+    app.add_exception_handler(RoomAlreadyExistsError, room_exists_handler)
+    app.add_exception_handler(RoomPermissionError, room_permission_handler)
+    app.add_exception_handler(RoomFullError, room_full_handler)
+    app.add_exception_handler(RoomPrivateError, room_private_handler)
+    app.add_exception_handler(NotRoomMemberError, not_room_member_handler)
+    app.add_exception_handler(ParticipantBannedError, participant_banned_handler)
+    app.add_exception_handler(ParticipantMutedError, participant_muted_handler)
+    app.add_exception_handler(
+        RoomParticipantNotFoundError, participant_not_found_handler
+    )
+    app.add_exception_handler(RoomMessageNotFoundError, message_not_found_handler)
 
     # Системные исключения
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

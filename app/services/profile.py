@@ -266,3 +266,15 @@ class ProfileService:
             app_logger.info(
                 f"Удалено {len(profile_interest_delete.ids)} интересов из профиля {username}"
             )
+
+    async def validate_profile_ownership(self, profile_id: UUID, user_id: UUID) -> None:
+        app_logger.info(
+            f"Проверка принадлежности профиля {profile_id} пользователю {user_id}"
+        )
+        async with self.uow as uow:
+            profile = await uow.profile.get_by_id(profile_id)
+            if not profile:
+                raise ProfileNotFoundError(str(profile_id))
+
+            if profile.user_id != user_id:
+                raise ProfilePermissionError(str(profile_id))

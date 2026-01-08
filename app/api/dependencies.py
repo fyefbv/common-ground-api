@@ -1,12 +1,13 @@
 from uuid import UUID
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.config import settings
 from app.core.exceptions.auth import MissingTokenError
 from app.db.unit_of_work import UnitOfWork
 from app.services import InterestService, ProfileService, UserService
+from app.services.room import RoomService
 from app.utils.object_storage import ObjectStorageService
 
 
@@ -40,6 +41,10 @@ async def get_interest_service(
     return InterestService(uow)
 
 
+async def get_room_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> RoomService:
+    return RoomService(uow)
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:
     if not token:
         raise MissingTokenError()
@@ -50,3 +55,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:
 
 async def get_accept_language(accept_language: str = Header(default="en")):
     return accept_language
+
+
+async def get_valid_profile_id(
+    profile_id: UUID = Query(...),
+    user: UUID = Depends(get_current_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> UUID:
+    await profile_service.validate_profile_ownership(profile_id, user)
+    return profile_id

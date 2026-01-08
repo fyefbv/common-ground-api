@@ -5,6 +5,9 @@ from app.repositories import (
     InterestRepository,
     ProfileInterestRepository,
     ProfileRepository,
+    RoomMessageRepository,
+    RoomParticipantRepository,
+    RoomRepository,
     UserRepository,
 )
 
@@ -19,6 +22,9 @@ class IUnitOfWork(ABC):
     profile: ProfileRepository
     interest: InterestRepository
     profile_interest: ProfileInterestRepository
+    room: RoomRepository
+    room_participant: RoomParticipantRepository
+    room_message: RoomMessageRepository
 
     @abstractmethod
     async def __aenter__(self):
@@ -61,6 +67,9 @@ class UnitOfWork(IUnitOfWork):
         self.profile = ProfileRepository(self.session)
         self.interest = InterestRepository(self.session)
         self.profile_interest = ProfileInterestRepository(self.session)
+        self.room = RoomRepository(self.session)
+        self.room_participant = RoomParticipantRepository(self.session)
+        self.room_message = RoomMessageRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
