@@ -11,15 +11,25 @@ from app.schemas.auth import TokenResponse
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
-def create_tokens(id: UUID) -> TokenResponse:
+def create_tokens(
+    user_id: UUID,
+    profile_id: UUID | None = None,
+    access_token_expires: int = settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    refresh_token_expires: int = settings.REFRESH_TOKEN_EXPIRE_MINUTES,
+) -> TokenResponse:
+    base_data = {"sub": str(user_id)}
+    if profile_id:
+        base_data["profile_id"] = str(profile_id)
+
     access_token = _encode_jwt(
-        data={"sub": str(id)},
-        time_expires=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        data=base_data,
+        time_expires=access_token_expires,
         token_type="access",
     )
+
     refresh_token = _encode_jwt(
-        data={"sub": str(id)},
-        time_expires=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
+        data=base_data,
+        time_expires=refresh_token_expires,
         token_type="refresh",
     )
 
@@ -27,10 +37,13 @@ def create_tokens(id: UUID) -> TokenResponse:
 
 
 def refresh_tokens(refresh_token: str) -> TokenResponse:
-    user_id = decode_jwt(refresh_token).get("sub")
-    new_tokens = create_tokens(UUID(user_id))
+    payload = decode_jwt(refresh_token)
+    user_id = payload.get("sub")
+    profile_id = payload.get("profile_id")
 
-    return new_tokens
+    return create_tokens(
+        user_id=UUID(user_id), profile_id=UUID(profile_id) if profile_id else None
+    )
 
 
 def decode_jwt(token: str) -> dict:

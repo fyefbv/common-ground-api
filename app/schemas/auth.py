@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -8,3 +10,7 @@ class TokenResponse(BaseModel):
 
 class TokenRefresh(BaseModel):
     token: str
+
+
+class ProfileTokenCreate(BaseModel):
+    profile_id: UUID

@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_room_service, get_valid_profile_id
 from app.schemas.room import (
@@ -33,7 +34,7 @@ async def get_rooms(
     offset: int = Query(0, ge=0),
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> list[RoomResponse]:
     return await room_service.search_rooms(
         query=query,
         interest_id=interest_id,
@@ -50,7 +51,7 @@ async def get_popular_rooms(
     limit: int = Query(20, ge=1, le=50),
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> list[RoomResponse]:
     return await room_service.get_popular_rooms(limit, profile_id)
 
 
@@ -58,7 +59,7 @@ async def get_popular_rooms(
 async def get_my_rooms(
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> list[RoomResponse]:
     return await room_service.get_user_rooms(profile_id)
 
 
@@ -69,7 +70,7 @@ async def create_room(
     room_create: RoomCreate,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomResponse:
     return await room_service.create_room(room_create, profile_id)
 
 
@@ -78,7 +79,7 @@ async def get_room(
     room_id: UUID,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomResponse:
     return await room_service.get_room(room_id, profile_id)
 
 
@@ -88,7 +89,7 @@ async def update_room(
     room_update: RoomUpdate,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomResponse:
     return await room_service.update_room(
         room_id=room_id, room_update=room_update, profile_id=profile_id
     )
@@ -99,7 +100,7 @@ async def delete_room(
     room_id: UUID,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> JSONResponse:
     await room_service.delete_room(room_id, profile_id)
     return {"detail": "Room deleted successfully"}
 
@@ -109,7 +110,7 @@ async def join_room(
     room_id: UUID,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomResponse:
     return await room_service.join_room(room_id, profile_id)
 
 
@@ -118,7 +119,7 @@ async def leave_room(
     room_id: UUID,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> JSONResponse:
     await room_service.leave_room(room_id, profile_id)
     return {"detail": "Left room successfully"}
 
@@ -131,7 +132,7 @@ async def get_room_participants(
     include_banned: bool = Query(False),
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> list[RoomParticipantResponse]:
     return await room_service.get_room_participants(
         room_id=room_id, profile_id=profile_id, include_banned=include_banned
     )
@@ -143,7 +144,7 @@ async def kick_participant(
     kick_request: RoomKickRequest,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> JSONResponse:
     await room_service.kick_participant(
         room_id=room_id, kick_request=kick_request, profile_id=profile_id
     )
@@ -157,7 +158,7 @@ async def get_room_messages(
     limit: int = Query(50, ge=1, le=100),
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomMessageListResponse:
     return await room_service.get_room_messages(
         room_id=room_id, profile_id=profile_id, before=before, limit=limit
     )
@@ -169,7 +170,7 @@ async def send_message(
     message_create: RoomMessageCreate,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomMessageResponse:
     return await room_service.send_message(
         room_id=room_id, message_create=message_create, profile_id=profile_id
     )
@@ -181,7 +182,7 @@ async def update_message(
     message_update: RoomMessageUpdate,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> RoomMessageResponse:
     return await room_service.update_message(
         message_id=message_id, message_update=message_update, profile_id=profile_id
     )
@@ -192,6 +193,6 @@ async def delete_message(
     message_id: UUID,
     room_service: RoomService = Depends(get_room_service),
     profile_id: UUID = Depends(get_valid_profile_id),
-):
+) -> JSONResponse:
     await room_service.delete_message(message_id, profile_id)
     return {"detail": "Message deleted successfully"}
