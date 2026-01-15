@@ -17,6 +17,5 @@ interests_router = APIRouter(prefix="/interests", tags=["Интересы"])
 async def get_interests(
     interest_service: InterestService = Depends(get_interest_service),
     accept_language: str = Depends(get_accept_language),
-    _: UUID = Depends(get_current_user),
 ) -> list[InterestResponse]:
     return await interest_service.get_interests(accept_language)

@@ -20,6 +20,7 @@ from app.core.exception_handlers.object_storage import (
 from app.core.exception_handlers.profile import (
     profile_exists_handler,
     profile_not_found_handler,
+    profile_not_selected_handler,
     profile_permission_handler,
 )
 from app.core.exception_handlers.room import (
@@ -59,6 +60,7 @@ from app.core.exceptions.object_storage import (
 from app.core.exceptions.profile import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
+    ProfileNotSelectedError,
     ProfilePermissionError,
 )
 from app.core.exceptions.room import (
@@ -94,6 +96,7 @@ def setup_exception_handlers(app: FastAPI):
     app.add_exception_handler(ProfileNotFoundError, profile_not_found_handler)
     app.add_exception_handler(ProfileAlreadyExistsError, profile_exists_handler)
     app.add_exception_handler(ProfilePermissionError, profile_permission_handler)
+    app.add_exception_handler(ProfileNotSelectedError, profile_not_selected_handler)
 
     # Исключения комнат
     app.add_exception_handler(RoomNotFoundError, room_not_found_handler)

@@ -58,3 +58,8 @@ class ProfileAvatarResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     avatar_url: str | None = None
+
+
+class UserProfile(BaseModel):
+    user_id: UUID
+    profile_id: UUID

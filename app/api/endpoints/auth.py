@@ -35,14 +35,13 @@ async def login(
 @auth_router.post("/select-profile", response_model=TokenResponse)
 async def select_profile(
     profile_token_create: ProfileTokenCreate,
-    user: UUID = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user),
     profile_service: ProfileService = Depends(get_profile_service),
 ) -> TokenResponse:
     await profile_service.validate_profile_ownership(
-        profile_token_create.profile_id, user
+        profile_token_create.profile_id, user_id
     )
-
-    return create_tokens(user, profile_token_create.profile_id)
+    return create_tokens(user_id, profile_token_create.profile_id)
 
 
 @auth_router.post("/refresh", response_model=TokenResponse)

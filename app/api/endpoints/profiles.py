@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
     get_accept_language,
+    get_current_profile,
     get_current_user,
     get_profile_service,
 )
@@ -14,6 +15,7 @@ from app.schemas.profile import (
     ProfileCreate,
     ProfileResponse,
     ProfileUpdate,
+    UserProfile,
 )
 from app.schemas.profile_interest import ProfileInterestAdd, ProfileInterestDelete
 from app.services.profile import ProfileService
@@ -35,18 +37,18 @@ async def get_profiles(
 async def create_profile(
     profile_create: ProfileCreate,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user),
 ) -> ProfileResponse:
-    profile_create.user_id = user
+    profile_create.user_id = user_id
     return await profile_service.create_profile(profile_create)
 
 
 @profiles_router.get("/me", response_model=list[ProfileResponse])
 async def get_user_profiles(
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user),
 ) -> list[ProfileResponse]:
-    return await profile_service.get_user_profiles(user)
+    return await profile_service.get_user_profiles(user_id)
 
 
 @profiles_router.get("/{username}", response_model=ProfileResponse)
@@ -58,50 +60,45 @@ async def get_profile(
     return await profile_service.get_profile(username)
 
 
-@profiles_router.put("/{username}", response_model=ProfileResponse)
+@profiles_router.patch("/me", response_model=ProfileResponse)
 async def update_profile(
-    username: str,
     profile_update: ProfileUpdate,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> ProfileResponse:
-    return await profile_service.update_profile(username, profile_update, user)
+    return await profile_service.update_profile(user_profile.profile_id, profile_update)
 
 
-@profiles_router.delete("/{username}")
+@profiles_router.delete("/me")
 async def delete_profile(
-    username: str,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
-    await profile_service.delete_profile(username, user)
+    await profile_service.delete_profile(user_profile.profile_id)
     return {"detail": "Profile deleted successfully"}
 
 
-@profiles_router.post("/{username}/avatar", response_model=ProfileAvatarResponse)
+@profiles_router.post("/me/avatar", response_model=ProfileAvatarResponse)
 async def upload_avatar(
-    username: str,
     file: UploadFile = File(),
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> ProfileAvatarResponse:
     file_data = await file.read()
 
     return await profile_service.upload_avatar(
-        username=username,
-        user_id=user,
+        profile_id=user_profile.profile_id,
         file_data=file_data,
         content_type=file.content_type,
     )
 
 
-@profiles_router.delete("/{username}/avatar")
+@profiles_router.delete("/me/avatar")
 async def delete_avatar(
-    username: str,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
-    await profile_service.delete_avatar(username, user)
+    await profile_service.delete_avatar(user_profile.profile_id)
     return {"detail": "Profile avatar deleted successfully"}
 
 
@@ -115,31 +112,26 @@ async def get_profile_interests(
     return await profile_service.get_profile_interests(username, accept_language)
 
 
-@profiles_router.post("/{username}/interests")
+@profiles_router.post("/me/interests")
 async def add_profile_interests(
-    username: str,
     profile_interest_add: ProfileInterestAdd,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
     await profile_service.add_profile_interests(
-        username=username,
-        profile_interest_add=profile_interest_add,
-        user_id=user,
+        profile_id=user_profile.profile_id, profile_interest_add=profile_interest_add
     )
     return {"detail": "Profile interests added successfully"}
 
 
-@profiles_router.delete("/{username}/interests")
+@profiles_router.delete("/me/interests")
 async def delete_profile_interests(
-    username: str,
     profile_interest_delete: ProfileInterestDelete,
     profile_service: ProfileService = Depends(get_profile_service),
-    user: UUID = Depends(get_current_user),
+    user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
     await profile_service.delete_profile_interests(
-        username=username,
+        profile_id=user_profile.profile_id,
         profile_interest_delete=profile_interest_delete,
-        user_id=user,
     )
     return {"detail": "Profile interests deleted successfully"}

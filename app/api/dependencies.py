@@ -5,7 +5,9 @@ from fastapi import Depends, Header, Query
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.config import settings
 from app.core.exceptions.auth import MissingTokenError
+from app.core.exceptions.profile import ProfileNotSelectedError
 from app.db.unit_of_work import UnitOfWork
+from app.schemas.profile import UserProfile
 from app.services import InterestService, ProfileService, UserService
 from app.services.room import RoomService
 from app.utils.object_storage import ObjectStorageService
@@ -53,14 +55,24 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:
     return UUID(payload.get("sub"))
 
 
+async def get_current_profile(
+    token: str = Depends(oauth2_scheme),
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> UserProfile:
+    if not token:
+        raise MissingTokenError()
+
+    payload = decode_jwt(token)
+    user_id = UUID(payload.get("sub"))
+    profile_id = payload.get("profile_id")
+
+    if not profile_id:
+        raise ProfileNotSelectedError()
+
+    profile_id = UUID(profile_id)
+    await profile_service.validate_profile_ownership(profile_id, user_id)
+    return UserProfile(user_id=user_id, profile_id=profile_id)
+
+
 async def get_accept_language(accept_language: str = Header(default="en")):
     return accept_language
-
-
-async def get_valid_profile_id(
-    profile_id: UUID = Query(...),
-    user: UUID = Depends(get_current_user),
-    profile_service: ProfileService = Depends(get_profile_service),
-) -> UUID:
-    await profile_service.validate_profile_ownership(profile_id, user)
-    return profile_id

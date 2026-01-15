@@ -26,3 +26,11 @@ class ProfilePermissionError(HTTPException):
             ),
         )
         self.profile_field = profile_field
+
+
+class ProfileNotSelectedError(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile not selected. Please select a profile first.",
+        )

@@ -74,16 +74,13 @@ class ProfileService:
             return profiles_to_return
 
     async def update_profile(
-        self, username: str, profile_update: ProfileUpdate, user_id: UUID
+        self, profile_id: UUID, profile_update: ProfileUpdate
     ) -> ProfileResponse:
-        app_logger.info(f"Обновление профиля: {username}")
+        app_logger.info(f"Обновление профиля: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
-
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
+                raise ProfileNotFoundError(profile_id)
 
             update_dict = profile_update.model_dump(exclude_unset=True)
             updated_profile = await uow.profile.update(profile.id, update_dict)
@@ -95,20 +92,17 @@ class ProfileService:
 
             await uow.commit()
 
-            app_logger.info(f"Профиль {username} обновлен")
+            app_logger.info(f"Профиль {profile_id} обновлен")
             return profile_to_return
 
     async def upload_avatar(
-        self, username: str, user_id: UUID, file_data: bytes, content_type: str
+        self, profile_id: UUID, file_data: bytes, content_type: str
     ) -> ProfileAvatarResponse:
-        app_logger.info(f"Загрузка аватарки для профиля: {username}")
+        app_logger.info(f"Загрузка аватарки для профиля: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
-
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
+                raise ProfileNotFoundError(profile_id)
 
             if not content_type.startswith("image/"):
                 raise UnsupportedMediaTypeError("File must be an image")
@@ -117,7 +111,7 @@ class ProfileService:
                 raise FileTooLargeError("File is too large. Maximum size: 5MB")
 
             avatar_url = await self.object_storage_service.upload_avatar(
-                profile.id, file_data
+                profile_id, file_data
             )
 
             avatar_to_return = ProfileAvatarResponse.model_validate(
@@ -126,42 +120,36 @@ class ProfileService:
 
             return avatar_to_return
 
-    async def delete_avatar(self, username: str, user_id: UUID) -> None:
-        app_logger.info(f"Удаление аватарки для профиля: {username}")
+    async def delete_avatar(self, profile_id: UUID) -> None:
+        app_logger.info(f"Удаление аватарки для профиля: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
+                raise ProfileNotFoundError(profile_id)
 
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
+            await self.object_storage_service.delete_avatar(profile_id)
 
-            await self.object_storage_service.delete_avatar(profile.id)
-
-    async def delete_profile(self, username: str, user_id: UUID) -> None:
-        app_logger.info(f"Удаление профиля: {username}")
+    async def delete_profile(self, profile_id: UUID) -> None:
+        app_logger.info(f"Удаление профиля: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
-
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
+                raise ProfileNotFoundError(profile_id)
 
             existing_avatar = await self.object_storage_service.avatar_exists(
-                profile.id
+                profile_id
             )
 
             if existing_avatar:
-                await self.object_storage_service.delete_avatar(profile.id)
+                await self.object_storage_service.delete_avatar(profile_id)
             else:
-                app_logger.warning(f"Не удалось удалить аватарку профиля {username}")
+                app_logger.warning(f"Не удалось удалить аватарку профиля {profile_id}")
 
-            await uow.profile_interest.delete_by_profile_id(profile.id)
-            await uow.profile.delete(profile.id)
+            await uow.profile_interest.delete_by_profile_id(profile_id)
+            await uow.profile.delete(profile_id)
             await uow.commit()
 
-            app_logger.info(f"Профиль {username} удален")
+            app_logger.info(f"Профиль {profile_id} удален")
 
     async def get_user_profiles(self, user_id: UUID) -> list[ProfileResponse]:
         app_logger.info(f"Получение всех профилей пользователя с ID: {user_id}")
@@ -192,7 +180,7 @@ class ProfileService:
                 raise ProfileNotFoundError(username)
 
             profile_interests = await uow.profile.get_profile_interests(
-                username, accept_language
+                profile.id, accept_language
             )
 
             app_logger.info(
@@ -209,20 +197,16 @@ class ProfileService:
 
     async def add_profile_interests(
         self,
-        username: str,
+        profile_id: UUID,
         profile_interest_add: ProfileInterestAdd,
-        user_id: UUID,
     ) -> None:
-        app_logger.info(f"Добавление интересов к профилю: {username}")
+        app_logger.info(f"Добавление интересов к профилю: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
+                raise ProfileNotFoundError(profile_id)
 
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
-
-            profile_interests = await uow.profile.get_profile_interests(username)
+            profile_interests = await uow.profile.get_profile_interests(profile_id)
 
             existing_interest_ids = [interest.id for interest in profile_interests]
 
@@ -230,28 +214,24 @@ class ProfileService:
                 id for id in profile_interest_add.ids if id not in existing_interest_ids
             ]
 
-            await uow.profile_interest.add_by_ids(profile.id, interests_to_add)
+            await uow.profile_interest.add_by_ids(profile_id, interests_to_add)
 
             await uow.commit()
 
-            app_logger.info(f"Интересы добавлены к профилю {username}")
+            app_logger.info(f"Интересы добавлены к профилю {profile_id}")
 
     async def delete_profile_interests(
         self,
-        username: str,
+        profile_id: UUID,
         profile_interest_delete: ProfileInterestDelete,
-        user_id: UUID,
     ) -> None:
-        app_logger.info(f"Удаление всех интересов профиля: {username}")
+        app_logger.info(f"Удаление всех интересов профиля: {profile_id}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
+            profile = await uow.profile.get_by_id(profile_id)
             if not profile:
-                raise ProfileNotFoundError(username)
+                raise ProfileNotFoundError(profile_id)
 
-            if profile.user_id != user_id:
-                raise ProfilePermissionError(username)
-
-            profile_interests = await uow.profile.get_profile_interests(username)
+            profile_interests = await uow.profile.get_profile_interests(profile_id)
 
             existing_interest_ids = [interest.id for interest in profile_interests]
 
@@ -259,12 +239,12 @@ class ProfileService:
                 id for id in profile_interest_delete.ids if id in existing_interest_ids
             ]
 
-            await uow.profile_interest.delete_by_ids(profile.id, interests_to_delete)
+            await uow.profile_interest.delete_by_ids(profile_id, interests_to_delete)
 
             await uow.commit()
 
             app_logger.info(
-                f"Удалено {len(profile_interest_delete.ids)} интересов из профиля {username}"
+                f"Удалено {len(profile_interest_delete.ids)} интересов из профиля {profile_id}"
             )
 
     async def validate_profile_ownership(self, profile_id: UUID, user_id: UUID) -> None:

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions.profile import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
+    ProfileNotSelectedError,
     ProfilePermissionError,
 )
 from app.core.logger import app_logger
@@ -38,6 +39,22 @@ async def profile_exists_handler(request: Request, exc: ProfileAlreadyExistsErro
             "success": False,
             "error": {
                 "code": "profile_already_exists",
+                "message": exc.detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+
+async def profile_not_selected_handler(request: Request, exc: ProfileNotSelectedError):
+    app_logger.warning("Попытка доступа без выбора профиля")
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "profile_not_selected",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
