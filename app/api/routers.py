@@ -7,11 +7,15 @@ from app.api.endpoints import (
     rooms_router,
     users_router,
 )
+from app.api.websockets.room_chat import ws_rooms_router
 
 api_router = APIRouter(prefix="/api")
+ws_router = APIRouter(prefix="/ws")
 
 api_router.include_router(users_router)
 api_router.include_router(auth_router)
 api_router.include_router(profiles_router)
 api_router.include_router(interests_router)
 api_router.include_router(rooms_router)
+
+ws_router.include_router(ws_rooms_router)

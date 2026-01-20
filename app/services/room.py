@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from app.core.exceptions.room import (
@@ -24,11 +24,13 @@ from app.schemas.room_message import (
     RoomMessageUpdate,
 )
 from app.schemas.room_participant import RoomKickRequest, RoomParticipantResponse
+from app.services.websocket.room_service import WebSocketRoomService
 
 
 class RoomService:
-    def __init__(self, uow: UnitOfWork):
+    def __init__(self, uow: UnitOfWork, wrs: WebSocketRoomService):
         self.uow = uow
+        self.wrs = wrs
 
     async def create_room(
         self, room_create: RoomCreate, profile_id: UUID
@@ -234,13 +236,32 @@ class RoomService:
 
             app_logger.info(f"Комната {room_id} обновлена")
 
-            room_dict = {
-                **updated_room.__dict__,
-                "participants_count": participants_count,
-                "messages_count": messages_count,
-                "is_joined": True,
-            }
-            return RoomResponse(**room_dict)
+            room_response = RoomResponse(
+                id=updated_room.id,
+                name=updated_room.name,
+                description=updated_room.description,
+                primary_interest_id=updated_room.primary_interest_id,
+                creator_id=updated_room.creator_id,
+                tags=updated_room.tags,
+                max_participants=updated_room.max_participants,
+                is_private=updated_room.is_private,
+                participants_count=participants_count,
+                messages_count=messages_count,
+                created_at=updated_room.created_at,
+                updated_at=updated_room.updated_at,
+                is_joined=True,
+            )
+
+            try:
+                await self.wrs.broadcast_room_update(
+                    room_id, room_response.model_dump(), profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об обновлении комнаты: {e}"
+                )
+
+            return room_response
 
     async def delete_room(self, room_id: UUID, profile_id: UUID) -> None:
         app_logger.info(f"Удаление комнаты: {room_id}")
@@ -257,6 +278,13 @@ class RoomService:
             await uow.commit()
 
             app_logger.info(f"Комната {room_id} удалена")
+
+            try:
+                await self.wrs.broadcast_room_deleted(room_id, profile_id)
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об удалении комнаты: {e}"
+                )
 
     async def join_room(self, room_id: UUID, profile_id: UUID) -> RoomResponse:
         app_logger.info(f"Присоединение к комнате: {room_id}")
@@ -294,6 +322,13 @@ class RoomService:
 
             app_logger.info(f"Профиль {profile_id} присоединился к комнате {room_id}")
 
+            try:
+                await self.wrs.broadcast_participant_joined(room_id, profile_id)
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о присоединении участника: {e}"
+                )
+
             room_dict = {
                 **room.__dict__,
                 "participants_count": participants_count,
@@ -326,6 +361,13 @@ class RoomService:
 
             app_logger.info(f"Профиль {profile_id} вышел из комнаты {room_id}")
 
+            try:
+                await self.wrs.broadcast_participant_left(room_id, profile_id)
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о выходе участника: {e}"
+                )
+
     async def get_room_participants(
         self, room_id: UUID, profile_id: UUID, include_banned: bool = False
     ) -> list[RoomParticipantResponse]:
@@ -337,6 +379,9 @@ class RoomService:
             )
             if not participant:
                 raise NotRoomMemberError()
+
+            if participant.is_banned:
+                raise ParticipantBannedError()
 
             participants = await uow.room_participant.get_room_participants(
                 room_id=room_id, include_banned=include_banned
@@ -360,6 +405,9 @@ class RoomService:
             requester = await uow.room_participant.get_participant(room_id, profile_id)
             if not requester:
                 raise NotRoomMemberError()
+
+            if requester.is_banned:
+                raise ParticipantBannedError()
 
             room = await uow.room.get_by_id(room_id)
             if not room:
@@ -396,6 +444,15 @@ class RoomService:
                 f"Участник {kick_request.profile_id} исключен из комнаты {room_id}"
             )
 
+            try:
+                await self.wrs.broadcast_participant_kicked(
+                    room_id, kick_request.profile_id, profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об исключении участника: {e}"
+                )
+
     async def send_message(
         self, room_id: UUID, message_create: RoomMessageCreate, profile_id: UUID
     ) -> RoomMessageResponse:
@@ -423,6 +480,18 @@ class RoomService:
             await uow.commit()
 
             app_logger.info(f"Сообщение отправлено в комнату {room_id}")
+
+            try:
+                message_response = RoomMessageResponse.model_validate(message)
+
+                await self.wrs.broadcast_new_message(
+                    room_id, message_response.model_dump(), profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о новом сообщении: {e}"
+                )
+
             return RoomMessageResponse.model_validate(message)
 
     async def get_room_messages(
@@ -440,6 +509,9 @@ class RoomService:
             )
             if not participant:
                 raise NotRoomMemberError()
+
+            if participant.is_banned:
+                raise ParticipantBannedError()
 
             messages = await uow.room_message.get_room_messages(
                 room_id=room_id, before=before, limit=limit
@@ -465,6 +537,15 @@ class RoomService:
             message = await uow.room_message.get_by_id(message_id)
             if not message:
                 raise RoomMessageNotFoundError(message_id)
+
+            participant = await uow.room_participant.get_participant(
+                message.room_id, profile_id
+            )
+            if not participant:
+                raise NotRoomMemberError()
+
+            if participant.is_banned:
+                raise ParticipantBannedError()
 
             if message.sender_id != profile_id:
                 raise RoomPermissionError("Only message sender can update message")
@@ -498,6 +579,9 @@ class RoomService:
             if not participant:
                 raise NotRoomMemberError()
 
+            if participant.is_banned:
+                raise ParticipantBannedError()
+
             if message.sender_id != profile_id and participant.role not in [
                 RoomParticipantRole.CREATOR,
                 RoomParticipantRole.MODERATOR,
@@ -509,3 +593,241 @@ class RoomService:
             await uow.commit()
 
             app_logger.info(f"Сообщение {message_id} удалено")
+
+    async def mute_participant(
+        self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
+    ) -> None:
+        app_logger.info(f"Мут участника {target_profile_id} в комнате {room_id}")
+
+        async with self.uow as uow:
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
+                raise NotRoomMemberError()
+
+            if requester.is_banned:
+                raise ParticipantBannedError()
+
+            is_creator = room.creator_id == profile_id
+            if not is_creator and requester.role != RoomParticipantRole.MODERATOR:
+                raise RoomPermissionError(
+                    "Only creators and moderators can mute participants"
+                )
+
+            if target_profile_id == profile_id:
+                raise RoomPermissionError("Cannot mute yourself")
+
+            target = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+            if not target:
+                raise RoomParticipantNotFoundError(target_profile_id)
+
+            if room.creator_id == target_profile_id:
+                raise RoomPermissionError("Cannot mute room creator")
+
+            if target.role == RoomParticipantRole.MODERATOR and not is_creator:
+                raise RoomPermissionError("Moderators cannot mute other moderators")
+
+            await uow.room_participant.mute_participant(room_id, target_profile_id)
+            await uow.commit()
+
+            app_logger.info(f"Участник {target_profile_id} замучен в комнате {room_id}")
+
+            try:
+                await self.wrs.broadcast_participant_muted(
+                    room_id, target_profile_id, profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о мьюте участника: {e}"
+                )
+
+    async def unmute_participant(
+        self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
+    ) -> None:
+        app_logger.info(
+            f"Снятие мута с участника {target_profile_id} в комнате {room_id}"
+        )
+
+        async with self.uow as uow:
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
+                raise NotRoomMemberError()
+
+            if requester.is_banned:
+                raise ParticipantBannedError()
+
+            is_creator = room.creator_id == profile_id
+            if not is_creator and requester.role != RoomParticipantRole.MODERATOR:
+                raise RoomPermissionError(
+                    "Only creators and moderators can unmute participants"
+                )
+
+            target = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+            if not target:
+                raise RoomParticipantNotFoundError(target_profile_id)
+
+            await uow.room_participant.unmute_participant(room_id, target_profile_id)
+            await uow.commit()
+
+            app_logger.info(
+                f"С участника {target_profile_id} снят мут в комнате {room_id}"
+            )
+
+            try:
+                await self.wrs.broadcast_participant_unmuted(
+                    room_id, target_profile_id, profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о размьюте участника: {e}"
+                )
+
+    async def ban_participant(
+        self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
+    ) -> None:
+        app_logger.info(f"Бан участника {target_profile_id} в комнате {room_id}")
+
+        async with self.uow as uow:
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
+                raise NotRoomMemberError()
+
+            if requester.is_banned:
+                raise ParticipantBannedError()
+
+            is_creator = room.creator_id == profile_id
+            if not is_creator and requester.role != RoomParticipantRole.MODERATOR:
+                raise RoomPermissionError(
+                    "Only creators and moderators can ban participants"
+                )
+
+            if target_profile_id == profile_id:
+                raise RoomPermissionError("Cannot ban yourself")
+
+            target = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+            if not target:
+                raise RoomParticipantNotFoundError(target_profile_id)
+
+            if room.creator_id == target_profile_id:
+                raise RoomPermissionError("Cannot ban room creator")
+
+            if target.role == RoomParticipantRole.MODERATOR and not is_creator:
+                raise RoomPermissionError("Moderators cannot ban other moderators")
+
+            await uow.room_participant.ban_participant(room_id, target_profile_id)
+            await uow.commit()
+
+            app_logger.info(f"Участник {target_profile_id} забанен в комнате {room_id}")
+
+            try:
+                await self.wrs.broadcast_participant_banned(
+                    room_id, target_profile_id, profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о бане участника: {e}"
+                )
+
+    async def unban_participant(
+        self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
+    ) -> None:
+        app_logger.info(f"Разбан участника {target_profile_id} в комнате {room_id}")
+
+        async with self.uow as uow:
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
+                raise NotRoomMemberError()
+
+            if requester.is_banned:
+                raise ParticipantBannedError()
+
+            is_creator = room.creator_id == profile_id
+            if not is_creator and requester.role != RoomParticipantRole.MODERATOR:
+                raise RoomPermissionError(
+                    "Only creators and moderators can unban participants"
+                )
+
+            target = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+            if not target:
+                raise RoomParticipantNotFoundError(target_profile_id)
+
+            await uow.room_participant.unban_participant(room_id, target_profile_id)
+            await uow.commit()
+
+            app_logger.info(
+                f"Участник {target_profile_id} разбанен в комнате {room_id}"
+            )
+
+            try:
+                await self.wrs.broadcast_participant_unbanned(
+                    room_id, target_profile_id, profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о разбане участника: {e}"
+                )
+
+    async def get_banned_participants(
+        self, room_id: UUID, profile_id: UUID
+    ) -> list[RoomParticipantResponse]:
+        app_logger.info(f"Получение забаненных участников комнаты: {room_id}")
+
+        async with self.uow as uow:
+            participant = await uow.room_participant.get_participant(
+                room_id, profile_id
+            )
+            if not participant:
+                raise NotRoomMemberError()
+
+            if participant.is_banned:
+                raise ParticipantBannedError()
+
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            if (
+                room.creator_id != profile_id
+                and participant.role != RoomParticipantRole.MODERATOR
+            ):
+                raise RoomPermissionError(
+                    "Only creators and moderators can view banned participants"
+                )
+
+            participants = await uow.room_participant.get_room_participants(
+                room_id=room_id, include_banned=True
+            )
+
+            banned_participants = [p for p in participants if p.is_banned]
+
+            participants_response = [
+                RoomParticipantResponse.model_validate(p) for p in banned_participants
+            ]
+
+            app_logger.info(
+                f"Найдено {len(participants_response)} забаненных участников"
+            )
+            return participants_response

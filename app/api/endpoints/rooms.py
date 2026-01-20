@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_current_profile, get_room_service
@@ -18,6 +18,7 @@ from app.schemas.room_message import (
     RoomMessageUpdate,
 )
 from app.schemas.room_participant import (
+    ParticipantModerationRequest,
     RoomKickRequest,
     RoomParticipantResponse,
 )
@@ -203,3 +204,80 @@ async def delete_message(
 ) -> JSONResponse:
     await room_service.delete_message(message_id, user_profile.profile_id)
     return {"detail": "Message deleted successfully"}
+
+
+@rooms_router.post("/{room_id}/participants/mute")
+async def mute_participant(
+    room_id: UUID,
+    request: ParticipantModerationRequest,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    await room_service.mute_participant(
+        room_id=room_id,
+        target_profile_id=request.participant_id,
+        profile_id=user_profile.profile_id,
+    )
+
+    return {"detail": "Participant muted successfully"}
+
+
+@rooms_router.post("/{room_id}/participants/unmute")
+async def unmute_participant(
+    room_id: UUID,
+    request: ParticipantModerationRequest,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    await room_service.unmute_participant(
+        room_id=room_id,
+        target_profile_id=request.participant_id,
+        profile_id=user_profile.profile_id,
+    )
+
+    return {"detail": "Participant unmuted successfully"}
+
+
+@rooms_router.post("/{room_id}/participants/ban")
+async def ban_participant(
+    room_id: UUID,
+    request: ParticipantModerationRequest,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    await room_service.ban_participant(
+        room_id=room_id,
+        target_profile_id=request.participant_id,
+        profile_id=user_profile.profile_id,
+    )
+
+    return {"detail": "Participant banned successfully"}
+
+
+@rooms_router.post("/{room_id}/participants/unban")
+async def unban_participant(
+    room_id: UUID,
+    request: ParticipantModerationRequest,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    await room_service.unban_participant(
+        room_id=room_id,
+        target_profile_id=request.participant_id,
+        profile_id=user_profile.profile_id,
+    )
+
+    return {"detail": "Participant unbanned successfully"}
+
+
+@rooms_router.get("/{room_id}/banned", response_model=list[RoomParticipantResponse])
+async def get_banned_participants(
+    room_id: UUID,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> list[RoomParticipantResponse]:
+    banned_participants = await room_service.get_banned_participants(
+        room_id, user_profile.profile_id
+    )
+
+    return banned_participants

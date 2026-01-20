@@ -21,3 +21,7 @@ class RoomParticipantResponse(BaseModel):
 class RoomKickRequest(BaseModel):
     profile_id: UUID
     reason: str | None = None
+
+
+class ParticipantModerationRequest(BaseModel):
+    participant_id: UUID

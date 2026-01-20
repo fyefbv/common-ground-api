@@ -10,6 +10,7 @@ from app.db.unit_of_work import UnitOfWork
 from app.schemas.profile import UserProfile
 from app.services import InterestService, ProfileService, UserService
 from app.services.room import RoomService
+from app.services.websocket.room_service import WebSocketRoomService
 from app.utils.object_storage import ObjectStorageService
 
 
@@ -24,6 +25,10 @@ async def get_object_storage_service() -> ObjectStorageService:
         secret_access_key=settings.S3_SECRET_ACCESS_KEY,
         bucket_name=settings.S3_BUCKET_NAME,
     )
+
+
+async def get_websocket_room_service() -> WebSocketRoomService:
+    return WebSocketRoomService()
 
 
 async def get_user_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> UserService:
@@ -43,8 +48,11 @@ async def get_interest_service(
     return InterestService(uow)
 
 
-async def get_room_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> RoomService:
-    return RoomService(uow)
+async def get_room_service(
+    uow: UnitOfWork = Depends(get_unit_of_work),
+    wrs: WebSocketRoomService = Depends(get_websocket_room_service),
+) -> RoomService:
+    return RoomService(uow, wrs)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:

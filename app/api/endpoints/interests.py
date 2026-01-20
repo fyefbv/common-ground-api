@@ -1,10 +1,7 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import (
     get_accept_language,
-    get_current_user,
     get_interest_service,
 )
 from app.schemas.interest import InterestResponse
