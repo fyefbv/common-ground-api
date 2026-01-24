@@ -21,7 +21,7 @@ class RoomParticipantRepository(Repository):
         participant_data = {
             "room_id": room_id,
             "profile_id": profile_id,
-            "role": role.value,
+            "role": role,
             "joined_at": datetime.now(timezone.utc),
         }
         return await self.add_one(participant_data)

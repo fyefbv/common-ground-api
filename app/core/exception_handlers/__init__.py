@@ -7,6 +7,20 @@ from app.core.exception_handlers.auth import (
     invalid_token_handler,
     missing_token_handler,
 )
+from app.core.exception_handlers.chat_roulette import (
+    already_in_search_handler,
+    already_in_session_handler,
+    already_rated_handler,
+    cannot_rate_non_completed_session_handler,
+    cannot_rate_yourself_handler,
+    extension_not_approved_handler,
+    no_active_search_handler,
+    no_active_session_handler,
+    partner_not_found_handler,
+    session_already_ended_handler,
+    session_expired_handler,
+    session_not_found_handler,
+)
 from app.core.exception_handlers.file import (
     file_too_large_handler,
     unsupported_media_type_handler,
@@ -49,6 +63,20 @@ from app.core.exceptions.auth import (
     ExpiredTokenError,
     InvalidTokenError,
     MissingTokenError,
+)
+from app.core.exceptions.chat_roulette import (
+    AlreadyInSearchError,
+    AlreadyInSessionError,
+    AlreadyRatedError,
+    CannotRateNonCompletedSessionError,
+    CannotRateYourselfError,
+    ExtensionNotApprovedError,
+    NoActiveSearchError,
+    NoActiveSessionError,
+    PartnerNotFoundError,
+    SessionAlreadyEndedError,
+    SessionExpiredError,
+    SessionNotFoundError,
 )
 from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
 from app.core.exceptions.interest import InterestNotFoundError
@@ -111,6 +139,22 @@ def setup_exception_handlers(app: FastAPI):
         RoomParticipantNotFoundError, participant_not_found_handler
     )
     app.add_exception_handler(RoomMessageNotFoundError, message_not_found_handler)
+
+    # Исключения чат-рулетки
+    app.add_exception_handler(AlreadyInSearchError, already_in_search_handler)
+    app.add_exception_handler(AlreadyInSessionError, already_in_session_handler)
+    app.add_exception_handler(NoActiveSearchError, no_active_search_handler)
+    app.add_exception_handler(NoActiveSessionError, no_active_session_handler)
+    app.add_exception_handler(SessionNotFoundError, session_not_found_handler)
+    app.add_exception_handler(PartnerNotFoundError, partner_not_found_handler)
+    app.add_exception_handler(SessionExpiredError, session_expired_handler)
+    app.add_exception_handler(SessionAlreadyEndedError, session_already_ended_handler)
+    app.add_exception_handler(CannotRateYourselfError, cannot_rate_yourself_handler)
+    app.add_exception_handler(AlreadyRatedError, already_rated_handler)
+    app.add_exception_handler(
+        CannotRateNonCompletedSessionError, cannot_rate_non_completed_session_handler
+    )
+    app.add_exception_handler(ExtensionNotApprovedError, extension_not_approved_handler)
 
     # Системные исключения
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

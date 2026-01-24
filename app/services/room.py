@@ -415,7 +415,7 @@ class RoomService:
 
             is_creator = room.creator_id == profile_id
 
-            if not is_creator and requester.role != RoomParticipantRole.MODERATOR.value:
+            if not is_creator and requester.role != RoomParticipantRole.MODERATOR:
                 raise RoomPermissionError(
                     "Only creators and moderators can kick participants"
                 )
@@ -432,7 +432,7 @@ class RoomService:
             if room.creator_id == kick_request.profile_id:
                 raise RoomPermissionError("Cannot kick room creator")
 
-            if target.role == RoomParticipantRole.MODERATOR.value and not is_creator:
+            if target.role == RoomParticipantRole.MODERATOR and not is_creator:
                 raise RoomPermissionError("Moderators cannot kick other moderators")
 
             await uow.room_participant.remove_participant(

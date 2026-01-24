@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.endpoints import (
     auth_router,
+    chat_roulette_router,
     interests_router,
     profiles_router,
     rooms_router,
@@ -17,5 +18,6 @@ api_router.include_router(auth_router)
 api_router.include_router(profiles_router)
 api_router.include_router(interests_router)
 api_router.include_router(rooms_router)
+api_router.include_router(chat_roulette_router)
 
 ws_router.include_router(ws_rooms_router)

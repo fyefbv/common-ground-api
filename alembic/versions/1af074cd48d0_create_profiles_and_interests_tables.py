@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column('user_id', sa.UUID(as_uuid=True), nullable=False),
         sa.Column('username', sa.String(length=40), nullable=False, unique=True),
         sa.Column('bio', sa.Text(), nullable=True),
-        sa.Column('reputation_score', sa.Float(), nullable=False, default=5.0),
+        sa.Column('reputation_score', sa.Float(), nullable=False, default=3.0),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

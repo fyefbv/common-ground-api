@@ -2,6 +2,10 @@ from abc import ABC, abstractmethod
 
 from app.db.database import async_session_maker
 from app.repositories import (
+    ChatRouletteMessageRepository,
+    ChatRouletteReportRepository,
+    ChatRouletteSearchRepository,
+    ChatRouletteSessionRepository,
     InterestRepository,
     ProfileInterestRepository,
     ProfileRepository,
@@ -25,6 +29,10 @@ class IUnitOfWork(ABC):
     room: RoomRepository
     room_participant: RoomParticipantRepository
     room_message: RoomMessageRepository
+    chat_roulette_session: ChatRouletteSessionRepository
+    chat_roulette_search: ChatRouletteSearchRepository
+    chat_roulette_report: ChatRouletteReportRepository
+    chat_roulette_message: ChatRouletteMessageRepository
 
     @abstractmethod
     async def __aenter__(self):
@@ -72,6 +80,10 @@ class UnitOfWork(IUnitOfWork):
             self.room = RoomRepository(self.session)
             self.room_participant = RoomParticipantRepository(self.session)
             self.room_message = RoomMessageRepository(self.session)
+            self.chat_roulette_session = ChatRouletteSessionRepository(self.session)
+            self.chat_roulette_search = ChatRouletteSearchRepository(self.session)
+            self.chat_roulette_report = ChatRouletteReportRepository(self.session)
+            self.chat_roulette_message = ChatRouletteMessageRepository(self.session)
 
             return self
 

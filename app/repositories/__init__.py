@@ -1,3 +1,7 @@
+from app.repositories.chat_roulette_message import ChatRouletteMessageRepository
+from app.repositories.chat_roulette_report import ChatRouletteReportRepository
+from app.repositories.chat_roulette_search import ChatRouletteSearchRepository
+from app.repositories.chat_roulette_session import ChatRouletteSessionRepository
 from app.repositories.interest import InterestRepository
 from app.repositories.profile import ProfileRepository
 from app.repositories.profile_interest import ProfileInterestRepository

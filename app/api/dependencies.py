@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import Depends, Header, Query
+from fastapi import Depends, Header
 
 from app.core.auth import decode_jwt, oauth2_scheme
 from app.core.config import settings
@@ -8,7 +8,12 @@ from app.core.exceptions.auth import MissingTokenError
 from app.core.exceptions.profile import ProfileNotSelectedError
 from app.db.unit_of_work import UnitOfWork
 from app.schemas.profile import UserProfile
-from app.services import InterestService, ProfileService, UserService
+from app.services import (
+    ChatRouletteService,
+    InterestService,
+    ProfileService,
+    UserService,
+)
 from app.services.room import RoomService
 from app.services.websocket.room_service import WebSocketRoomService
 from app.utils.object_storage import ObjectStorageService
@@ -53,6 +58,13 @@ async def get_room_service(
     wrs: WebSocketRoomService = Depends(get_websocket_room_service),
 ) -> RoomService:
     return RoomService(uow, wrs)
+
+
+async def get_chat_roulette_service(
+    uow: UnitOfWork = Depends(get_unit_of_work),
+    object_storage_service: ObjectStorageService = Depends(get_object_storage_service),
+) -> ChatRouletteService:
+    return ChatRouletteService(uow, object_storage_service)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:

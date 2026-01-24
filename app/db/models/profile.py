@@ -21,7 +21,7 @@ class Profile(Base):
     username: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     reputation_score: Mapped[float] = mapped_column(
-        Float, nullable=False, index=True, default=5.0
+        Float, nullable=False, index=True, default=3.0
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
