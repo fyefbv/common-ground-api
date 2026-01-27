@@ -18,6 +18,7 @@ from app.schemas.room_message import (
     RoomMessageUpdate,
 )
 from app.schemas.room_participant import (
+    ChangeRoleRequest,
     ParticipantModerationRequest,
     RoomKickRequest,
     RoomParticipantResponse,
@@ -281,3 +282,20 @@ async def get_banned_participants(
     )
 
     return banned_participants
+
+
+@rooms_router.post(
+    "/{room_id}/participants/change-role", response_model=RoomParticipantResponse
+)
+async def change_participant_role(
+    room_id: UUID,
+    change_role_request: ChangeRoleRequest,
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> RoomParticipantResponse:
+    return await room_service.change_participant_role(
+        room_id=room_id,
+        target_profile_id=change_role_request.target_profile_id,
+        new_role=change_role_request.new_role,
+        profile_id=user_profile.profile_id,
+    )

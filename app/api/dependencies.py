@@ -15,7 +15,8 @@ from app.services import (
     UserService,
 )
 from app.services.room import RoomService
-from app.services.websocket.room_service import WebSocketRoomService
+from app.services.websocket.chat_roulette import WebSocketChatRouletteService
+from app.services.websocket.room import WebSocketRoomService
 from app.utils.object_storage import ObjectStorageService
 
 
@@ -36,15 +37,19 @@ async def get_websocket_room_service() -> WebSocketRoomService:
     return WebSocketRoomService()
 
 
+async def get_websocket_chat_roulette_service() -> WebSocketChatRouletteService:
+    return WebSocketChatRouletteService()
+
+
 async def get_user_service(uow: UnitOfWork = Depends(get_unit_of_work)) -> UserService:
     return UserService(uow)
 
 
 async def get_profile_service(
     uow: UnitOfWork = Depends(get_unit_of_work),
-    object_storage_service: ObjectStorageService = Depends(get_object_storage_service),
+    oss: ObjectStorageService = Depends(get_object_storage_service),
 ) -> ProfileService:
-    return ProfileService(uow, object_storage_service)
+    return ProfileService(uow, oss)
 
 
 async def get_interest_service(
@@ -62,9 +67,10 @@ async def get_room_service(
 
 async def get_chat_roulette_service(
     uow: UnitOfWork = Depends(get_unit_of_work),
-    object_storage_service: ObjectStorageService = Depends(get_object_storage_service),
+    oss: ObjectStorageService = Depends(get_object_storage_service),
+    wcrs: WebSocketChatRouletteService = Depends(get_websocket_chat_roulette_service),
 ) -> ChatRouletteService:
-    return ChatRouletteService(uow, object_storage_service)
+    return ChatRouletteService(uow, oss, wcrs)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UUID:

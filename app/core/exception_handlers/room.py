@@ -4,7 +4,9 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions.room import (
+    InvalidRoleError,
     NotRoomMemberError,
+    ParticipantAlreadyHasRoleError,
     ParticipantBannedError,
     ParticipantMutedError,
     RoomAlreadyExistsError,
@@ -179,6 +181,42 @@ async def participant_muted_handler(request: Request, exc: ParticipantMutedError
             "success": False,
             "error": {
                 "code": "participant_muted",
+                "message": exc.detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+
+async def invalid_role_handler(request: Request, exc: InvalidRoleError):
+    app_logger.warning(f"Попытка использования недопустимой роли: {exc.detail}")
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "invalid_role",
+                "message": exc.detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+
+async def participant_already_has_role_handler(
+    request: Request, exc: ParticipantAlreadyHasRoleError
+):
+    app_logger.warning(
+        f"Попытка назначения роли, которая уже есть у участника: {exc.detail}"
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "participant_already_has_role",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },

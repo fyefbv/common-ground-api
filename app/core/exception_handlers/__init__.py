@@ -16,6 +16,7 @@ from app.core.exception_handlers.chat_roulette import (
     extension_not_approved_handler,
     no_active_search_handler,
     no_active_session_handler,
+    no_matching_found_handler,
     partner_not_found_handler,
     session_already_ended_handler,
     session_expired_handler,
@@ -38,8 +39,10 @@ from app.core.exception_handlers.profile import (
     profile_permission_handler,
 )
 from app.core.exception_handlers.room import (
+    invalid_role_handler,
     message_not_found_handler,
     not_room_member_handler,
+    participant_already_has_role_handler,
     participant_banned_handler,
     participant_muted_handler,
     participant_not_found_handler,
@@ -73,6 +76,7 @@ from app.core.exceptions.chat_roulette import (
     ExtensionNotApprovedError,
     NoActiveSearchError,
     NoActiveSessionError,
+    NoMatchingFoundError,
     PartnerNotFoundError,
     SessionAlreadyEndedError,
     SessionExpiredError,
@@ -92,7 +96,9 @@ from app.core.exceptions.profile import (
     ProfilePermissionError,
 )
 from app.core.exceptions.room import (
+    InvalidRoleError,
     NotRoomMemberError,
+    ParticipantAlreadyHasRoleError,
     ParticipantBannedError,
     ParticipantMutedError,
     RoomAlreadyExistsError,
@@ -139,6 +145,10 @@ def setup_exception_handlers(app: FastAPI):
         RoomParticipantNotFoundError, participant_not_found_handler
     )
     app.add_exception_handler(RoomMessageNotFoundError, message_not_found_handler)
+    app.add_exception_handler(InvalidRoleError, invalid_role_handler)
+    app.add_exception_handler(
+        ParticipantAlreadyHasRoleError, participant_already_has_role_handler
+    )
 
     # Исключения чат-рулетки
     app.add_exception_handler(AlreadyInSearchError, already_in_search_handler)
@@ -155,6 +165,7 @@ def setup_exception_handlers(app: FastAPI):
         CannotRateNonCompletedSessionError, cannot_rate_non_completed_session_handler
     )
     app.add_exception_handler(ExtensionNotApprovedError, extension_not_approved_handler)
+    app.add_exception_handler(NoMatchingFoundError, no_matching_found_handler)
 
     # Системные исключения
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

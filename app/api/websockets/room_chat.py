@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, s
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_unit_of_work
-from app.api.websockets.connection_manager import connection_manager
-from app.api.websockets.handlers import WebSocketHandler
+from app.api.websockets.room_connection_manager import room_connection_manager
+from app.api.websockets.room_handlers import RoomWebSocketHandler
 from app.core.logger import app_logger
 from app.core.websocket.auth import authenticate_websocket
-from app.core.websocket.events import WebSocketEventType, WebSocketMessage
+from app.core.websocket.room_events import RoomEventType, RoomWebSocketMessage
 from app.db.unit_of_work import UnitOfWork
 from app.services.room import RoomService
-from app.services.websocket.room_service import WebSocketRoomService
+from app.services.websocket.room import WebSocketRoomService
 
 ws_rooms_router = APIRouter()
 
@@ -58,7 +58,7 @@ async def websocket_room_chat(
     if not auth_result:
         return
 
-    user_id, profile_id = auth_result
+    _, profile_id = auth_result
 
     has_access = await validate_room_access(room_id, profile_id)
     if not has_access:
@@ -67,13 +67,13 @@ async def websocket_room_chat(
         )
         return
 
-    handler = WebSocketHandler(room_id, profile_id)
+    handler = RoomWebSocketHandler(room_id, profile_id)
 
     try:
-        await connection_manager.connect(room_id, profile_id, websocket, user_id)
+        await room_connection_manager.connect(room_id, profile_id, websocket)
 
         connection_event = await handler.create_connection_event()
-        await connection_manager.send_personal_message(
+        await room_connection_manager.send_personal_message(
             connection_event.to_dict(), room_id, profile_id
         )
 
@@ -85,63 +85,67 @@ async def websocket_room_chat(
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=300)
             except asyncio.TimeoutError:
-                ping_event = WebSocketMessage(
-                    type=WebSocketEventType.PING,
+                ping_event = RoomWebSocketMessage(
+                    type=RoomEventType.PING,
                     data={"timestamp": datetime.now(timezone.utc).isoformat()},
                     timestamp=datetime.now(timezone.utc),
                 )
-                await connection_manager.send_personal_message(
+                await room_connection_manager.send_personal_message(
                     ping_event.to_dict(), room_id, profile_id
                 )
                 continue
             except WebSocketDisconnect:
+                app_logger.info(
+                    f"WebSocket отключен: профиль={profile_id}, комната={room_id}"
+                )
+                room_connection_manager.disconnect(room_id, profile_id)
                 break
             except Exception as e:
                 app_logger.error(f"Ошибка получения сообщения WebSocket: {e}")
+                room_connection_manager.disconnect(room_id, profile_id)
                 break
 
             try:
                 response_event = await handler.handle_message(data)
 
-                if response_event.type == WebSocketEventType.PONG:
-                    await connection_manager.send_personal_message(
+                if response_event.type == RoomEventType.PONG:
+                    await room_connection_manager.send_personal_message(
                         response_event.to_dict(), room_id, profile_id
                     )
                 elif response_event.type in [
-                    WebSocketEventType.TYPING_STARTED,
-                    WebSocketEventType.TYPING_STOPPED,
+                    RoomEventType.TYPING_STARTED,
+                    RoomEventType.TYPING_STOPPED,
                 ]:
-                    await connection_manager.broadcast(
+                    await room_connection_manager.broadcast(
                         response_event.to_dict(), room_id, exclude_profile_id=profile_id
                     )
 
             except ValueError as e:
                 app_logger.warning(f"Ошибка валидации WebSocket сообщения: {e}")
-                error_event = WebSocketMessage(
-                    type=WebSocketEventType.ERROR,
+                error_event = RoomWebSocketMessage(
+                    type=RoomEventType.ERROR,
                     data={"message": str(e)},
                     timestamp=datetime.now(timezone.utc),
                 )
-                await connection_manager.send_personal_message(
+                await room_connection_manager.send_personal_message(
                     error_event.to_dict(), room_id, profile_id
                 )
 
             except Exception as e:
                 app_logger.error(f"Ошибка обработки WebSocket сообщения: {e}")
-                error_event = WebSocketMessage(
-                    type=WebSocketEventType.ERROR,
+                error_event = RoomWebSocketMessage(
+                    type=RoomEventType.ERROR,
                     data={"message": "Internal server error"},
                     timestamp=datetime.now(timezone.utc),
                 )
-                await connection_manager.send_personal_message(
+                await room_connection_manager.send_personal_message(
                     error_event.to_dict(), room_id, profile_id
                 )
 
     except WebSocketDisconnect:
         app_logger.info(f"WebSocket отключен: профиль={profile_id}, комната={room_id}")
-
-        connection_manager.disconnect(room_id, profile_id)
+        room_connection_manager.disconnect(room_id, profile_id)
 
     except Exception as e:
         app_logger.error(f"Непредвиденная ошибка WebSocket: {e}")
-        connection_manager.disconnect(room_id, profile_id)
+        room_connection_manager.disconnect(room_id, profile_id)

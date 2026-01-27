@@ -12,6 +12,7 @@ from app.core.exceptions.chat_roulette import (
     ExtensionNotApprovedError,
     NoActiveSearchError,
     NoActiveSessionError,
+    NoMatchingFoundError,
     PartnerNotFoundError,
     SessionAlreadyEndedError,
     SessionExpiredError,
@@ -213,6 +214,22 @@ async def cannot_rate_non_completed_session_handler(
             "success": False,
             "error": {
                 "code": "cannot_rate_non_completed_session",
+                "message": exc.detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+
+async def no_matching_found_handler(request: Request, exc: NoMatchingFoundError):
+    app_logger.warning("Не удалось найти собеседника для поиска")
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "no_matching_found",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },

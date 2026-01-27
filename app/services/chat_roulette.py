@@ -10,6 +10,7 @@ from app.core.exceptions.chat_roulette import (
     CannotRateYourselfError,
     ExtensionNotApprovedError,
     NoActiveSessionError,
+    NoMatchingFoundError,
     PartnerNotFoundError,
     SessionAlreadyEndedError,
     SessionExpiredError,
@@ -29,17 +30,28 @@ from app.schemas.chat_roulette import (
     ChatRouletteStatisticsResponse,
     SessionExtendResponse,
 )
+from app.services.websocket.chat_roulette import WebSocketChatRouletteService
 from app.utils.object_storage import ObjectStorageService
 
 
 class ChatRouletteService:
-    def __init__(self, uow: UnitOfWork, object_storage_service: ObjectStorageService):
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        oss: ObjectStorageService,
+        wcrs: WebSocketChatRouletteService,
+    ):
         self.uow = uow
-        self.object_storage_service = object_storage_service
+        self.oss = oss
+        self.wcrs = wcrs
+        self._cleanup_task = None
+        self._cleanup_initialized = False
 
     async def start_search(
         self, search_request: ChatRouletteSearchRequest, profile_id: UUID
     ) -> ChatRouletteSearchResponse:
+        await self._lazy_init_cleanup_task()
+
         app_logger.info(f"Начало поиска для профиля: {profile_id}")
 
         async with self.uow as uow:
@@ -64,7 +76,6 @@ class ChatRouletteService:
             search = await uow.chat_roulette_search.create_or_update_search(
                 profile_id=profile_id,
                 priority_interest_ids=search_request.priority_interest_ids,
-                max_wait_time_minutes=search_request.max_wait_time_minutes,
             )
 
             matched = await self._try_match_profile(
@@ -133,31 +144,37 @@ class ChatRouletteService:
                 "status": ChatRouletteSessionStatus.WAITING,
                 "duration_minutes": 5,
             }
-            session = await uow.chat_roulette_session.add_one(session_data)
+            await uow.chat_roulette_session.add_one(session_data)
 
             await uow.commit()
 
-            asyncio.create_task(
-                self._background_search(
-                    profile_id,
-                    search.id,
-                    search_request.priority_interest_ids or [],
+            try:
+                active_session = await asyncio.wait_for(
+                    self._background_search_with_timeout(
+                        profile_id,
+                        search.id,
+                        search_request.priority_interest_ids or [],
+                    ),
+                    timeout=20.0,
                 )
-            )
 
-            if not hasattr(self, "_cleanup_task") or self._cleanup_task.done():
-                self._cleanup_task = asyncio.create_task(
-                    self._background_session_cleanup()
-                )
-                app_logger.info("Запущена задача очистки сессий в фоне")
+                if active_session:
+                    return ChatRouletteSearchResponse(
+                        session=active_session,
+                        immediate_match=True,
+                        search_id=None,
+                    )
+                else:
+                    await uow.chat_roulette_session.delete_waiting_sessions(profile_id)
+                    await uow.chat_roulette_search.deactivate_search(profile_id)
+                    await uow.commit()
+                    raise NoMatchingFoundError()
 
-            return ChatRouletteSearchResponse(
-                session=ChatRouletteSessionResponse.model_validate(
-                    await self._enrich_session_response(session)
-                ),
-                immediate_match=False,
-                search_id=search.id,
-            )
+            except asyncio.TimeoutError:
+                await uow.chat_roulette_session.delete_waiting_sessions(profile_id)
+                await uow.chat_roulette_search.deactivate_search(profile_id)
+                await uow.commit()
+                raise NoMatchingFoundError()
 
     async def cancel_search(self, profile_id: UUID) -> bool:
         app_logger.info(f"Отмена поиска для профиля: {profile_id}")
@@ -260,12 +277,23 @@ class ChatRouletteService:
 
             await uow.commit()
 
-            return ChatRouletteMessageResponse(
+            message_response = ChatRouletteMessageResponse(
                 session_id=session.id,
                 sender_id=profile_id,
                 content=content,
                 created_at=message.created_at,
             )
+
+            try:
+                await self.wcrs.broadcast_message_sent(
+                    session.id, message_response.model_dump(), profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о новом сообщении: {e}"
+                )
+
+            return message_response
 
     async def extend_session(self, profile_id: UUID) -> SessionExtendResponse:
         fixed_extension_minutes = 5
@@ -283,6 +311,9 @@ class ChatRouletteService:
                 raise NoActiveSessionError()
 
             is_profile1 = session.profile1_id == profile_id
+            partner_profile_id = (
+                session.profile2_id if is_profile1 else session.profile1_id
+            )
 
             if is_profile1:
                 session.extension_approved_by_profile1 = True
@@ -298,9 +329,34 @@ class ChatRouletteService:
             await uow.commit()
 
             if is_profile1 and not session.extension_approved_by_profile2:
+                try:
+                    await self.wcrs.broadcast_extension_request(
+                        session.id, profile_id, partner_profile_id
+                    )
+                except Exception as e:
+                    app_logger.error(
+                        f"Ошибка при отправке WebSocket уведомления о запросе продления: {e}"
+                    )
                 raise ExtensionNotApprovedError()
             elif not is_profile1 and not session.extension_approved_by_profile1:
+                try:
+                    await self.wcrs.broadcast_extension_request(
+                        session.id, profile_id, partner_profile_id
+                    )
+                except Exception as e:
+                    app_logger.error(
+                        f"Ошибка при отправке WebSocket уведомления о запросе продления: {e}"
+                    )
                 raise ExtensionNotApprovedError()
+
+            try:
+                await self.wcrs.broadcast_extension_approved(
+                    session.id, profile_id, partner_profile_id
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об утверждении продления: {e}"
+                )
 
             extended_session = await uow.chat_roulette_session.extend_session(
                 session.id, fixed_extension_minutes
@@ -316,11 +372,25 @@ class ChatRouletteService:
             await uow.chat_roulette_session.update(session.id, reset_data)
             await uow.commit()
 
-            return SessionExtendResponse(
+            response = SessionExtendResponse(
                 session_id=session.id,
                 extended_minutes=fixed_extension_minutes,
                 new_expires_at=extended_session.expires_at.isoformat(),
             )
+
+            try:
+                await self.wcrs.broadcast_session_extended(
+                    session.id,
+                    profile_id,
+                    fixed_extension_minutes,
+                    extended_session.expires_at,
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о продлении сессии: {e}"
+                )
+
+            return response
 
     async def end_session(self, profile_id: UUID, reason: str) -> bool:
         async with self.uow as uow:
@@ -343,6 +413,13 @@ class ChatRouletteService:
             )
 
             await uow.commit()
+
+            try:
+                await self.wcrs.broadcast_session_ended(session.id, profile_id, reason)
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о завершении сессии: {e}"
+                )
 
             return True
 
@@ -448,6 +525,15 @@ class ChatRouletteService:
                 f"Профиль {profile_id} пожаловался на {partner_profile_id}: {report_request.reason} - {report_request.details}"
             )
 
+            try:
+                await self.wcrs.broadcast_session_reported(
+                    session.id, profile_id, partner_profile_id, report_request.reason
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о репорте сессии: {e}"
+                )
+
             return True
 
     async def get_statistics(self, profile_id: UUID) -> ChatRouletteStatisticsResponse:
@@ -533,16 +619,48 @@ class ChatRouletteService:
 
         return best_match
 
-    async def _background_search(
+    async def _background_search_with_timeout(
         self, profile_id: UUID, search_id: UUID, priority_interest_ids: list[UUID]
-    ):
-        try:
-            await asyncio.sleep(2)
+    ) -> ChatRouletteSessionResponse | None:
+        async with UnitOfWork() as uow:
+            for attempt in range(10):
+                active_session = (
+                    await uow.chat_roulette_session.find_active_session_by_profile(
+                        profile_id
+                    )
+                )
 
-            async with UnitOfWork() as uow:
+                if active_session:
+                    partner_profile_id = (
+                        active_session.profile2_id
+                        if active_session.profile1_id == profile_id
+                        else active_session.profile1_id
+                    )
+
+                    if partner_profile_id:
+                        partner_profile = await uow.profile.get_by_id(
+                            partner_profile_id
+                        )
+                        common_interests = await self._get_common_interests(
+                            profile_id, partner_profile_id
+                        )
+
+                        app_logger.info(
+                            f"Фоновый поиск: найдена активная сессия для профиля {profile_id}"
+                        )
+                        return ChatRouletteSessionResponse.model_validate(
+                            await self._enrich_session_response(
+                                active_session, partner_profile, common_interests
+                            )
+                        )
+
                 search = await uow.chat_roulette_search.get_by_id(search_id)
+
+                if search:
+                    await uow.session.refresh(search)
+
                 if not search or not search.is_active:
-                    return
+                    return None
 
                 matched = await self._try_match_profile(
                     uow, profile_id, priority_interest_ids
@@ -575,21 +693,26 @@ class ChatRouletteService:
                         profile_id, partner_profile_id
                     )
 
-                    app_logger.info(
-                        f"Найдено совпадение в фоне: {profile_id} с {partner_profile_id}"
-                    )
-                else:
-                    await uow.chat_roulette_search.increase_search_score(search_id, 1)
-                    await uow.commit()
-
-                    asyncio.create_task(
-                        self._background_search(
-                            profile_id, search_id, priority_interest_ids
+                    return ChatRouletteSessionResponse.model_validate(
+                        await self._enrich_session_response(
+                            started_session, partner_profile, common_interests
                         )
                     )
 
-        except Exception as e:
-            app_logger.error(f"Ошибка фонового поиска: {e}")
+                if attempt < 9:
+                    await asyncio.sleep(2)
+
+        return None
+
+    async def _lazy_init_cleanup_task(self):
+        if not self._cleanup_initialized:
+            self._start_cleanup_task()
+            self._cleanup_initialized = True
+
+    def _start_cleanup_task(self):
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._background_session_cleanup())
+            app_logger.info("Фоновая задача очистки сессий запущена")
 
     async def _background_session_cleanup(self):
         try:
@@ -612,6 +735,18 @@ class ChatRouletteService:
                             app_logger.info(
                                 f"Автоматически завершено {len(expired_sessions)} просроченных сессий"
                             )
+
+                            for session in expired_sessions:
+                                try:
+                                    await self.wcrs.broadcast_session_ended(
+                                        session.id,
+                                        session.profile1_id,
+                                        "Session expired automatically",
+                                    )
+                                except Exception as e:
+                                    app_logger.error(
+                                        f"Ошибка при отправке WebSocket уведомления о завершении сессии {session.id}: {e}"
+                                    )
 
                         expiring_soon_sessions = (
                             await uow.chat_roulette_session.get_expiring_sessions(
@@ -674,9 +809,7 @@ class ChatRouletteService:
         }
 
         if partner_profile:
-            avatar_url = await self.object_storage_service.get_avatar_url(
-                partner_profile.id
-            )
+            avatar_url = await self.oss.get_avatar_url(partner_profile.id)
             response["matched_profile"] = {
                 "id": partner_profile.id,
                 "username": partner_profile.username,

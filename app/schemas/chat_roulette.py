@@ -15,7 +15,6 @@ class ProfileSummary(BaseModel):
 
 class ChatRouletteSearchRequest(BaseModel):
     priority_interest_ids: list[UUID] | None = Field(None)
-    max_wait_time_minutes: int = Field(default=10, ge=1, le=30)
 
     @field_validator("priority_interest_ids")
     @classmethod

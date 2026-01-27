@@ -21,9 +21,9 @@ from app.utils.object_storage import ObjectStorageService
 
 
 class ProfileService:
-    def __init__(self, uow: UnitOfWork, object_storage_service: ObjectStorageService):
+    def __init__(self, uow: UnitOfWork, oss: ObjectStorageService):
         self.uow = uow
-        self.object_storage_service = object_storage_service
+        self.oss = oss
 
     async def create_profile(self, profile_create: ProfileCreate) -> ProfileResponse:
         app_logger.info(f"Создание профиля с user_id: {profile_create.user_id}")
@@ -49,9 +49,7 @@ class ProfileService:
                 raise ProfileNotFoundError(username)
 
             profile_to_return = ProfileResponse.model_validate(profile)
-            profile_to_return.avatar_url = (
-                await self.object_storage_service.get_avatar_url(profile.id)
-            )
+            profile_to_return.avatar_url = await self.oss.get_avatar_url(profile.id)
 
             app_logger.info(f"Профиль {username} найден")
             return profile_to_return
@@ -61,7 +59,7 @@ class ProfileService:
         async with self.uow as uow:
             profiles = await uow.profile.find_all()
             profile_ids = [profile.id for profile in profiles]
-            avatar_urls = await self.object_storage_service.list_avatars(profile_ids)
+            avatar_urls = await self.oss.list_avatars(profile_ids)
 
             profiles_to_return = []
             for profile in profiles:
@@ -86,9 +84,7 @@ class ProfileService:
             updated_profile = await uow.profile.update(profile.id, update_dict)
 
             profile_to_return = ProfileResponse.model_validate(updated_profile)
-            profile_to_return.avatar_url = (
-                await self.object_storage_service.get_avatar_url(profile.id)
-            )
+            profile_to_return.avatar_url = await self.oss.get_avatar_url(profile.id)
 
             await uow.commit()
 
@@ -110,9 +106,7 @@ class ProfileService:
             if len(file_data) > 5 * 1024 * 1024:
                 raise FileTooLargeError("File is too large. Maximum size: 5MB")
 
-            avatar_url = await self.object_storage_service.upload_avatar(
-                profile_id, file_data
-            )
+            avatar_url = await self.oss.upload_avatar(profile_id, file_data)
 
             avatar_to_return = ProfileAvatarResponse.model_validate(
                 {"avatar_url": avatar_url}
@@ -127,7 +121,7 @@ class ProfileService:
             if not profile:
                 raise ProfileNotFoundError(profile_id)
 
-            await self.object_storage_service.delete_avatar(profile_id)
+            await self.oss.delete_avatar(profile_id)
 
     async def delete_profile(self, profile_id: UUID) -> None:
         app_logger.info(f"Удаление профиля: {profile_id}")
@@ -136,12 +130,10 @@ class ProfileService:
             if not profile:
                 raise ProfileNotFoundError(profile_id)
 
-            existing_avatar = await self.object_storage_service.avatar_exists(
-                profile_id
-            )
+            existing_avatar = await self.oss.avatar_exists(profile_id)
 
             if existing_avatar:
-                await self.object_storage_service.delete_avatar(profile_id)
+                await self.oss.delete_avatar(profile_id)
             else:
                 app_logger.warning(f"Не удалось удалить аватарку профиля {profile_id}")
 
@@ -156,7 +148,7 @@ class ProfileService:
         async with self.uow as uow:
             profiles = await uow.profile.find_all(user_id=user_id)
             profile_ids = [profile.id for profile in profiles]
-            avatar_urls = await self.object_storage_service.list_avatars(profile_ids)
+            avatar_urls = await self.oss.list_avatars(profile_ids)
 
             profiles_to_return = []
             for profile in profiles:

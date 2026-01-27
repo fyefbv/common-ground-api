@@ -2,7 +2,9 @@ from datetime import datetime
 from uuid import UUID
 
 from app.core.exceptions.room import (
+    InvalidRoleError,
     NotRoomMemberError,
+    ParticipantAlreadyHasRoleError,
     ParticipantBannedError,
     ParticipantMutedError,
     RoomAlreadyExistsError,
@@ -24,7 +26,7 @@ from app.schemas.room_message import (
     RoomMessageUpdate,
 )
 from app.schemas.room_participant import RoomKickRequest, RoomParticipantResponse
-from app.services.websocket.room_service import WebSocketRoomService
+from app.services.websocket.room import WebSocketRoomService
 
 
 class RoomService:
@@ -387,9 +389,18 @@ class RoomService:
                 room_id=room_id, include_banned=include_banned
             )
 
-            participants_response = [
-                RoomParticipantResponse.model_validate(p) for p in participants
-            ]
+            participants_response = []
+            for p in participants:
+                participant_dict = p.__dict__.copy()
+
+                participant_dict["is_online"] = self.wrs.is_profile_online(
+                    room_id, p.profile_id
+                )
+
+                participant_response = RoomParticipantResponse.model_validate(
+                    participant_dict
+                )
+                participants_response.append(participant_response)
 
             app_logger.info(f"Найдено {len(participants_response)} участников")
             return participants_response
@@ -823,11 +834,107 @@ class RoomService:
 
             banned_participants = [p for p in participants if p.is_banned]
 
-            participants_response = [
-                RoomParticipantResponse.model_validate(p) for p in banned_participants
-            ]
+            participants_response = []
+            for p in banned_participants:
+                participant_dict = p.__dict__.copy()
+
+                participant_dict["is_online"] = self.wrs.is_profile_online(
+                    room_id, p.profile_id
+                )
+
+                participant_response = RoomParticipantResponse.model_validate(
+                    participant_dict
+                )
+                participants_response.append(participant_response)
 
             app_logger.info(
                 f"Найдено {len(participants_response)} забаненных участников"
             )
             return participants_response
+
+    async def change_participant_role(
+        self,
+        room_id: UUID,
+        target_profile_id: UUID,
+        new_role: RoomParticipantRole,
+        profile_id: UUID,
+    ) -> RoomParticipantResponse:
+        app_logger.info(
+            f"Изменение роли участника {target_profile_id} в комнате {room_id}"
+        )
+
+        async with self.uow as uow:
+            room = await uow.room.get_by_id(room_id)
+            if not room:
+                raise RoomNotFoundError(room_id)
+
+            if room.creator_id != profile_id:
+                raise RoomPermissionError(
+                    "Only room creator can change participant roles"
+                )
+
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
+                raise NotRoomMemberError()
+
+            target_participant = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+            if not target_participant:
+                raise RoomParticipantNotFoundError(target_profile_id)
+
+            if target_participant.role == RoomParticipantRole.CREATOR:
+                raise RoomPermissionError("Cannot change role of room creator")
+
+            if new_role not in [
+                RoomParticipantRole.MEMBER,
+                RoomParticipantRole.MODERATOR,
+            ]:
+                raise InvalidRoleError(new_role.value)
+
+            if target_participant.role == new_role:
+                raise ParticipantAlreadyHasRoleError(new_role.value)
+
+            old_role = target_participant.role
+
+            await uow.room_participant.update_role(
+                room_id=room_id,
+                profile_id=target_profile_id,
+                role=new_role,
+            )
+
+            await uow.commit()
+
+            updated_participant = await uow.room_participant.get_participant(
+                room_id, target_profile_id
+            )
+
+            is_online = self.wrs.is_profile_online(room_id, target_profile_id)
+
+            app_logger.info(
+                f"Роль участника {target_profile_id} изменена с {old_role} на {new_role} в комнате {room_id}"
+            )
+
+            participant_dict = {
+                **updated_participant.__dict__,
+                "is_online": is_online,
+            }
+
+            participant_response = RoomParticipantResponse.model_validate(
+                participant_dict
+            )
+
+            try:
+                await self.wrs.broadcast_role_changed(
+                    room_id=room_id,
+                    target_profile_id=target_profile_id,
+                    old_role=old_role,
+                    new_role=new_role,
+                    changer_profile_id=profile_id,
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления о смене роли участника: {e}"
+                )
+
+            return participant_response

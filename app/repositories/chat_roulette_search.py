@@ -19,17 +19,13 @@ class ChatRouletteSearchRepository(Repository):
         return result.scalar_one_or_none()
 
     async def create_or_update_search(
-        self,
-        profile_id: UUID,
-        priority_interest_ids: list[UUID] | None = None,
-        max_wait_time_minutes: int = 10,
+        self, profile_id: UUID, priority_interest_ids: list[UUID] | None = None
     ) -> ChatRouletteSearch:
         existing_search = await self.find_active_search(profile_id)
 
         if existing_search:
             update_data = {
                 "priority_interest_ids": priority_interest_ids,
-                "max_wait_time_minutes": max_wait_time_minutes,
                 "search_started_at": datetime.now(timezone.utc),
             }
 
@@ -39,7 +35,6 @@ class ChatRouletteSearchRepository(Repository):
             search_data = {
                 "profile_id": profile_id,
                 "priority_interest_ids": priority_interest_ids,
-                "max_wait_time_minutes": max_wait_time_minutes,
                 "search_started_at": datetime.now(timezone.utc),
                 "is_active": True,
             }
@@ -73,15 +68,6 @@ class ChatRouletteSearchRepository(Repository):
 
         result = await self.session.execute(stmt)
         return result.rowcount
-
-    async def increase_search_score(self, search_id: UUID, increment: int = 1) -> None:
-        stmt = (
-            update(self.model)
-            .where(self.model.id == search_id)
-            .values(search_score=self.model.search_score + increment)
-        )
-
-        await self.session.execute(stmt)
 
     async def get_active_searches_count(self) -> int:
         stmt = select(self.model).where(self.model.is_active == True)

@@ -19,10 +19,8 @@ def upgrade() -> None:
         sa.Column('id', sa.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
         sa.Column('profile_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False),
         sa.Column('priority_interest_ids', sa.ARRAY(sa.UUID(as_uuid=True)), nullable=True),
-        sa.Column('search_score', sa.Integer(), nullable=False, default=0),
         sa.Column('is_active', sa.Boolean(), nullable=False, default=True),
         sa.Column('search_started_at', sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
-        sa.Column('max_wait_time_minutes', sa.Integer(), nullable=False, default=10),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
     )
 

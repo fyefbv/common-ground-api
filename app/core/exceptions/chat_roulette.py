@@ -72,3 +72,8 @@ class CannotRateNonCompletedSessionError(ChatRouletteError):
 class ExtensionNotApprovedError(ChatRouletteError):
     def __init__(self):
         super().__init__("Extension not approved by partner")
+
+
+class NoMatchingFoundError(ChatRouletteError):
+    def __init__(self):
+        super().__init__("No matching partner found. Please try again.")

@@ -5,14 +5,12 @@ from fastapi import WebSocket
 from app.core.logger import app_logger
 
 
-class ConnectionManager:
+class RoomConnectionManager:
     def __init__(self):
         self.active_connections: dict[UUID, dict[UUID, WebSocket]] = {}
         self.profile_rooms: dict[UUID, set[UUID]] = {}
 
-    async def connect(
-        self, room_id: UUID, profile_id: UUID, websocket: WebSocket, user_id: UUID
-    ):
+    async def connect(self, room_id: UUID, profile_id: UUID, websocket: WebSocket):
         await websocket.accept()
 
         if room_id not in self.active_connections:
@@ -25,7 +23,7 @@ class ConnectionManager:
         self.profile_rooms[profile_id].add(room_id)
 
         app_logger.info(
-            f"WebSocket подключен: user_id={user_id}, profile_id={profile_id}, room_id={room_id}"
+            f"WebSocket подключен: profile_id={profile_id}, room_id={room_id}"
         )
 
     def disconnect(self, room_id: UUID, profile_id: UUID):
@@ -115,4 +113,4 @@ class ConnectionManager:
         return 0
 
 
-connection_manager = ConnectionManager()
+room_connection_manager = RoomConnectionManager()

@@ -47,7 +47,6 @@ def upgrade() -> None:
         sa.Column("profile_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("role", sa.String(length=20), nullable=False, server_default="MEMBER"),
         sa.Column("joined_at", sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
-        sa.Column("is_online", sa.Boolean(), nullable=False),
         sa.Column("is_muted", sa.Boolean(), nullable=False),
         sa.Column("is_banned", sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint(

@@ -5,21 +5,21 @@ from uuid import UUID
 
 from fastapi import WebSocket
 
-from app.api.websockets.connection_manager import connection_manager
+from app.api.websockets.room_connection_manager import room_connection_manager
 from app.core.logger import app_logger
-from app.core.websocket.events import WebSocketEventType, WebSocketMessage
+from app.core.websocket.room_events import RoomEventType, RoomWebSocketMessage
 from app.db.unit_of_work import UnitOfWork
 from app.schemas.room_message import RoomMessageCreate
 from app.services.room import RoomService
-from app.services.websocket.room_service import WebSocketRoomService
+from app.services.websocket.room import WebSocketRoomService
 
 
-class WebSocketHandler:
+class RoomWebSocketHandler:
     def __init__(self, room_id: UUID, profile_id: UUID):
         self.room_id = room_id
         self.profile_id = profile_id
 
-    async def handle_message(self, data: dict[str, Any]) -> WebSocketMessage:
+    async def handle_message(self, data: dict[str, Any]) -> RoomWebSocketMessage:
         message_type = data.get("type")
 
         if message_type == "send_message":
@@ -33,7 +33,7 @@ class WebSocketHandler:
         else:
             raise ValueError(f"Unknown message type: {message_type}")
 
-    async def _handle_send_message(self, data: dict[str, Any]) -> WebSocketMessage:
+    async def _handle_send_message(self, data: dict[str, Any]) -> RoomWebSocketMessage:
         content = data.get("content")
         parent_message_id = data.get("parent_message_id")
 
@@ -78,8 +78,8 @@ class WebSocketHandler:
                 f"Сообщение отправлено в комнату {self.room_id} от профиля {self.profile_id}"
             )
 
-            return WebSocketMessage(
-                type=WebSocketEventType.MESSAGE_SENT,
+            return RoomWebSocketMessage(
+                type=RoomEventType.MESSAGE_SENT,
                 data={
                     "message": {
                         "id": str(message.id),
@@ -103,72 +103,48 @@ class WebSocketHandler:
                 sender_profile_id=self.profile_id,
             )
 
-    async def _handle_typing_started(self) -> WebSocketMessage:
+    async def _handle_typing_started(self) -> RoomWebSocketMessage:
         app_logger.debug(
             f"Профиль {self.profile_id} начал печатать в комнате {self.room_id}"
         )
 
-        return WebSocketMessage(
-            type=WebSocketEventType.TYPING_STARTED,
+        return RoomWebSocketMessage(
+            type=RoomEventType.TYPING_STARTED,
             data={"profile_id": str(self.profile_id), "room_id": str(self.room_id)},
             timestamp=datetime.now(timezone.utc),
             room_id=self.room_id,
             sender_profile_id=self.profile_id,
         )
 
-    async def _handle_typing_stopped(self) -> WebSocketMessage:
+    async def _handle_typing_stopped(self) -> RoomWebSocketMessage:
         app_logger.debug(
             f"Профиль {self.profile_id} закончил печатать в комнате {self.room_id}"
         )
 
-        return WebSocketMessage(
-            type=WebSocketEventType.TYPING_STOPPED,
+        return RoomWebSocketMessage(
+            type=RoomEventType.TYPING_STOPPED,
             data={"profile_id": str(self.profile_id), "room_id": str(self.room_id)},
             timestamp=datetime.now(timezone.utc),
             room_id=self.room_id,
             sender_profile_id=self.profile_id,
         )
 
-    async def _handle_ping(self) -> WebSocketMessage:
-        return WebSocketMessage(
-            type=WebSocketEventType.PONG,
+    async def _handle_ping(self) -> RoomWebSocketMessage:
+        return RoomWebSocketMessage(
+            type=RoomEventType.PONG,
             data={"timestamp": datetime.now(timezone.utc).isoformat()},
             timestamp=datetime.now(timezone.utc),
         )
 
-    async def create_join_event(self) -> WebSocketMessage:
-        return WebSocketMessage(
-            type=WebSocketEventType.PARTICIPANT_JOINED,
-            data={
-                "profile_id": str(self.profile_id),
-                "joined_at": datetime.now(timezone.utc).isoformat(),
-                "online_count": connection_manager.get_room_online_count(self.room_id),
-            },
-            timestamp=datetime.now(timezone.utc),
-            room_id=self.room_id,
-            sender_profile_id=self.profile_id,
-        )
-
-    async def create_leave_event(self) -> WebSocketMessage:
-        return WebSocketMessage(
-            type=WebSocketEventType.PARTICIPANT_LEFT,
-            data={
-                "profile_id": str(self.profile_id),
-                "left_at": datetime.now(timezone.utc).isoformat(),
-                "online_count": connection_manager.get_room_online_count(self.room_id),
-            },
-            timestamp=datetime.now(timezone.utc),
-            room_id=self.room_id,
-            sender_profile_id=self.profile_id,
-        )
-
-    async def create_connection_event(self) -> WebSocketMessage:
-        return WebSocketMessage(
-            type=WebSocketEventType.CONNECTION_ESTABLISHED,
+    async def create_connection_event(self) -> RoomWebSocketMessage:
+        return RoomWebSocketMessage(
+            type=RoomEventType.CONNECTION_ESTABLISHED,
             data={
                 "profile_id": str(self.profile_id),
                 "room_id": str(self.room_id),
-                "online_count": connection_manager.get_room_online_count(self.room_id),
+                "online_count": room_connection_manager.get_room_online_count(
+                    self.room_id
+                ),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             timestamp=datetime.now(timezone.utc),

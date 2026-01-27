@@ -69,3 +69,19 @@ class ParticipantMutedError(HTTPException):
 class RoomMessageNotFoundError(NotFoundError):
     def __init__(self, message_field: str | None = None):
         super().__init__("Room message", message_field)
+
+
+class InvalidRoleError(HTTPException):
+    def __init__(self, role: str):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role: {role}. Must be either MEMBER or MODERATOR",
+        )
+
+
+class ParticipantAlreadyHasRoleError(HTTPException):
+    def __init__(self, role: str):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Participant already has role {role}",
+        )

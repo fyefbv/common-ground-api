@@ -32,6 +32,5 @@ class RoomParticipant(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    is_online: Mapped[bool] = mapped_column(default=False)
     is_muted: Mapped[bool] = mapped_column(default=False)
     is_banned: Mapped[bool] = mapped_column(default=False)

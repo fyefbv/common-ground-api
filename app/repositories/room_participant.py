@@ -47,39 +47,10 @@ class RoomParticipantRepository(Repository):
         if not include_banned:
             stmt = stmt.where(self.model.is_banned == False)
 
-        stmt = (
-            stmt.order_by(desc(self.model.is_online), desc(self.model.joined_at))
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = stmt.order_by(desc(self.model.joined_at)).limit(limit).offset(offset)
 
         result = await self.session.execute(stmt)
         return result.scalars().all()
-
-    async def get_online_participants(self, room_id: UUID) -> list[RoomParticipant]:
-        stmt = select(self.model).where(
-            and_(
-                self.model.room_id == room_id,
-                self.model.is_online == True,
-                self.model.is_banned == False,
-            )
-        )
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def set_online_status(
-        self, room_id: UUID, profile_id: UUID, is_online: bool
-    ) -> None:
-        from sqlalchemy import update
-
-        stmt = (
-            update(self.model)
-            .where(
-                and_(self.model.room_id == room_id, self.model.profile_id == profile_id)
-            )
-            .values(is_online=is_online)
-        )
-        await self.session.execute(stmt)
 
     async def update_role(
         self, room_id: UUID, profile_id: UUID, role: RoomParticipantRole
