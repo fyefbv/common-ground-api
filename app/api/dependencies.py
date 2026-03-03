@@ -12,9 +12,9 @@ from app.services import (
     ChatRouletteService,
     InterestService,
     ProfileService,
+    RoomService,
     UserService,
 )
-from app.services.room import RoomService
 from app.services.websocket.chat_roulette import WebSocketChatRouletteService
 from app.services.websocket.room import WebSocketRoomService
 from app.utils.object_storage import ObjectStorageService

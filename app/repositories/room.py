@@ -11,11 +11,6 @@ from app.repositories.base import Repository
 class RoomRepository(Repository):
     model = Room
 
-    async def find_by_name(self, name: str) -> Room | None:
-        stmt = select(self.model).where(self.model.name == name)
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def search_rooms(
         self,
         query: str | None = None,

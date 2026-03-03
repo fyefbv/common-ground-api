@@ -15,7 +15,7 @@ from app.db.unit_of_work import UnitOfWork
 from app.services.room import RoomService
 from app.services.websocket.room import WebSocketRoomService
 
-ws_rooms_router = APIRouter()
+ws_rooms_router = APIRouter(tags=["WebSocket: Комнаты"])
 
 
 async def validate_room_access(room_id: UUID, profile_id: UUID) -> bool:

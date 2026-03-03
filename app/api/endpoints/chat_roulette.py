@@ -35,6 +35,21 @@ async def start_search(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ChatRouletteSearchResponse:
+    """
+    Начинает поиск партнёра для чат-рулетки.
+
+    Args:
+        search_request: Параметры поиска (интересы)
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ChatRouletteSearchResponse: Информация о найденном партнёре или статусе поиска
+
+    Notes:
+        - Создаёт новую сессию поиска.
+        - Возвращает статус 201 Created при успешном запуске.
+    """
     return await chat_roulette_service.start_search(
         search_request, user_profile.profile_id
     )
@@ -45,6 +60,16 @@ async def cancel_search(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Отменяет текущий поиск партнёра для чат-рулетки.
+
+    Args:
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе или отсутствии активного поиска
+    """
     cancelled = await chat_roulette_service.cancel_search(user_profile.profile_id)
     if cancelled:
         return {"detail": "Search cancelled successfully"}
@@ -56,6 +81,16 @@ async def get_active_session(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ChatRouletteSessionResponse | JSONResponse:
+    """
+    Возвращает информацию о текущей активной сессии чат-рулетки.
+
+    Args:
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ChatRouletteSessionResponse | JSONResponse: Данные сессии или сообщение об её отсутствии
+    """
     session = await chat_roulette_service.get_active_session(user_profile.profile_id)
     if session:
         return session
@@ -67,6 +102,16 @@ async def extend_session(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> SessionExtendResponse:
+    """
+    Продлевает время текущей сессии чат-рулетки.
+
+    Args:
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        SessionExtendResponse: Новое время истечения сессии
+    """
     return await chat_roulette_service.extend_session(user_profile.profile_id)
 
 
@@ -76,6 +121,17 @@ async def end_session(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Завершает текущую сессию чат-рулетки с указанием причины.
+
+    Args:
+        request: Причина завершения сессии
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе или неудаче завершения сессии
+    """
     ended = await chat_roulette_service.end_session(
         user_profile.profile_id, request.reason
     )
@@ -90,6 +146,17 @@ async def rate_partner(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Ставит оценку партнёру по чат-рулетке.
+
+    Args:
+        rating_request: Оценка (рейтинг и комментарий)
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе или неудаче отправки оценки
+    """
     rated = await chat_roulette_service.rate_partner(
         user_profile.profile_id, rating_request
     )
@@ -104,6 +171,17 @@ async def report_partner(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Отправляет жалобу на партнёра в чат-рулетке.
+
+    Args:
+        report_request: Причина жалобы и дополнительные данные
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе или неудаче отправки жалобы
+    """
     reported = await chat_roulette_service.report_partner(
         user_profile.profile_id, report_request
     )
@@ -117,6 +195,16 @@ async def get_statistics(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ChatRouletteStatisticsResponse:
+    """
+    Возвращает статистику чат-рулетки для текущего профиля.
+
+    Args:
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ChatRouletteStatisticsResponse: Статистика сессий, оценок и жалоб
+    """
     return await chat_roulette_service.get_statistics(user_profile.profile_id)
 
 
@@ -126,6 +214,17 @@ async def send_message(
     chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ChatRouletteMessageResponse:
+    """
+    Отправляет сообщение партнёру в текущей сессии чат-рулетки.
+
+    Args:
+        message_create: Текст сообщения
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ChatRouletteMessageResponse: Информация об отправленном сообщении
+    """
     return await chat_roulette_service.send_message(
         user_profile.profile_id, message_create.content
     )

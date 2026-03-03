@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, delete, desc, select
+from sqlalchemy import and_, delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.room_message import RoomMessage
@@ -55,8 +55,6 @@ class RoomParticipantRepository(Repository):
     async def update_role(
         self, room_id: UUID, profile_id: UUID, role: RoomParticipantRole
     ) -> None:
-        from sqlalchemy import update
-
         stmt = (
             update(self.model)
             .where(
@@ -74,8 +72,6 @@ class RoomParticipantRepository(Repository):
         return result.rowcount > 0
 
     async def ban_participant(self, room_id: UUID, profile_id: UUID) -> None:
-        from sqlalchemy import update
-
         stmt = (
             update(self.model)
             .where(
@@ -86,8 +82,6 @@ class RoomParticipantRepository(Repository):
         await self.session.execute(stmt)
 
     async def unban_participant(self, room_id: UUID, profile_id: UUID) -> None:
-        from sqlalchemy import update
-
         stmt = (
             update(self.model)
             .where(
@@ -98,8 +92,6 @@ class RoomParticipantRepository(Repository):
         await self.session.execute(stmt)
 
     async def mute_participant(self, room_id: UUID, profile_id: UUID) -> None:
-        from sqlalchemy import update
-
         stmt = (
             update(self.model)
             .where(
@@ -110,8 +102,6 @@ class RoomParticipantRepository(Repository):
         await self.session.execute(stmt)
 
     async def unmute_participant(self, room_id: UUID, profile_id: UUID) -> None:
-        from sqlalchemy import update
-
         stmt = (
             update(self.model)
             .where(
@@ -122,8 +112,6 @@ class RoomParticipantRepository(Repository):
         await self.session.execute(stmt)
 
     async def get_room_counts(self, room_id: UUID) -> tuple[int, int]:
-        from sqlalchemy import func, select
-
         participants_stmt = (
             select(func.count())
             .select_from(RoomParticipant)

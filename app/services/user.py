@@ -12,10 +12,31 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 
 
 class UserService:
+    """
+    Сервис для управления пользователями системы.
+
+    Обеспечивает бизнес-логику для:
+    - Регистрации, аутентификации и управления учётными записями
+    - Хэширования паролей и проверки аутентификации
+    - CRUD-операций над пользователями
+    """
+
     def __init__(self, uow: UnitOfWork):
         self.uow = uow
 
     async def create_user(self, user_create: UserCreate) -> UserResponse:
+        """
+        Создаёт нового пользователя с уникальным email.
+
+        Args:
+            user_create: Данные для создания пользователя (email, пароль, имя и др.)
+
+        Returns:
+            UserResponse: Информация о созданном пользователе (без пароля)
+
+        Raises:
+            UserAlreadyExistsError: Если email уже занят
+        """
         app_logger.info(f"Создание пользователя с email: {user_create.email}")
         user_dict: dict = user_create.model_dump()
         user_dict["password_hash"] = get_password_hash(user_dict.pop("password"))
@@ -32,6 +53,18 @@ class UserService:
             return user_to_return
 
     async def get_user(self, user_id: UUID) -> UserResponse:
+        """
+        Возвращает информацию о пользователе по его идентификатору.
+
+        Args:
+            user_id: Идентификатор пользователя
+
+        Returns:
+            UserResponse: Данные пользователя (без пароля)
+
+        Raises:
+            UserNotFoundError: Если пользователь не найден
+        """
         app_logger.info(f"Получение пользователя с ID: {user_id}")
         async with self.uow as uow:
             user = await uow.user.get_by_id(user_id)
@@ -44,6 +77,12 @@ class UserService:
             return user_to_return
 
     async def get_users(self) -> list[UserResponse]:
+        """
+        Возвращает список всех пользователей в системе.
+
+        Returns:
+            list[UserResponse]: Список пользователей (без паролей)
+        """
         app_logger.info("Получение всех пользователей")
         async with self.uow as uow:
             users = await uow.user.find_all()
@@ -53,6 +92,19 @@ class UserService:
             return users_to_return
 
     async def update_user(self, user_id: UUID, user_update: UserUpdate) -> UserResponse:
+        """
+        Обновляет данные пользователя (email, имя, пароль и др.).
+
+        Args:
+            user_id: Идентификатор пользователя
+            user_update: Данные для обновления (пароль хэшируется автоматически)
+
+        Returns:
+            UserResponse: Обновлённая информация о пользователе
+
+        Raises:
+            UserNotFoundError: Если пользователь не найден
+        """
         app_logger.info(f"Обновление пользователя с ID: {user_id}")
         user_dict: dict = user_update.model_dump(exclude_unset=True)
         if "password" in user_dict:
@@ -69,6 +121,15 @@ class UserService:
             return user_to_return
 
     async def delete_user(self, user_id: UUID) -> None:
+        """
+        Удаляет пользователя из системы.
+
+        Args:
+            user_id: Идентификатор пользователя
+
+        Raises:
+            UserNotFoundError: Если пользователь не найден
+        """
         app_logger.info(f"Удаление пользователя с ID: {user_id}")
         async with self.uow as uow:
             user = await uow.user.get_by_id(user_id)
@@ -81,6 +142,18 @@ class UserService:
             app_logger.info(f"Пользователь с ID {user_id} удален")
 
     async def authenticate_user(self, user_auth: UserLogin) -> UserResponse:
+        """
+        Аутентифицирует пользователя по email и паролю.
+
+        Args:
+            user_auth: Данные для аутентификации (email и пароль)
+
+        Returns:
+            UserResponse: Информация о пользователе (без пароля)
+
+        Raises:
+            AuthenticationFailedError: Если email или пароль неверны
+        """
         app_logger.info(
             f"Попытка аутентификации пользователя с email: {user_auth.email}"
         )

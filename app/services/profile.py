@@ -21,11 +21,33 @@ from app.utils.object_storage import ObjectStorageService
 
 
 class ProfileService:
+    """
+    Сервис для управления профилями пользователей, их интересами и аватарками.
+
+    Обеспечивает бизнес-логику для:
+    - Создания, обновления и удаления профилей
+    - Управления аватарками (загрузка, удаление, получение URL)
+    - Работы с интересами профилей (добавление, удаление, получение)
+    - Проверки прав доступа к профилям
+    """
+
     def __init__(self, uow: UnitOfWork, oss: ObjectStorageService):
         self.uow = uow
         self.oss = oss
 
     async def create_profile(self, profile_create: ProfileCreate) -> ProfileResponse:
+        """
+        Создаёт новый профиль пользователя с уникальным именем.
+
+        Args:
+            profile_create: Данные для создания профиля (username, user_id, биография и др.)
+
+        Returns:
+            ProfileResponse: Информация о созданном профиле
+
+        Raises:
+            ProfileAlreadyExistsError: Если username уже занят
+        """
         app_logger.info(f"Создание профиля с user_id: {profile_create.user_id}")
         async with self.uow as uow:
             existing_profile = await uow.profile.find_one(
@@ -42,6 +64,18 @@ class ProfileService:
             return profile_to_return
 
     async def get_profile(self, username: str) -> ProfileResponse:
+        """
+        Возвращает информацию о профиле по его username.
+
+        Args:
+            username: Уникальное имя профиля
+
+        Returns:
+            ProfileResponse: Данные профиля, включая URL аватарки
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Получение профиля: {username}")
         async with self.uow as uow:
             profile = await uow.profile.find_one(username=username)
@@ -55,6 +89,12 @@ class ProfileService:
             return profile_to_return
 
     async def get_profiles(self) -> list[ProfileResponse]:
+        """
+        Возвращает список всех профилей в системе.
+
+        Returns:
+            list[ProfileResponse]: Список профилей с URL аватарок
+        """
         app_logger.info("Получение всех профилей")
         async with self.uow as uow:
             profiles = await uow.profile.find_all()
@@ -74,6 +114,19 @@ class ProfileService:
     async def update_profile(
         self, profile_id: UUID, profile_update: ProfileUpdate
     ) -> ProfileResponse:
+        """
+        Обновляет данные профиля (биографию, интересы, настройки и др.).
+
+        Args:
+            profile_id: Идентификатор профиля
+            profile_update: Данные для обновления
+
+        Returns:
+            ProfileResponse: Обновлённая информация о профиле
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Обновление профиля: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
@@ -94,6 +147,22 @@ class ProfileService:
     async def upload_avatar(
         self, profile_id: UUID, file_data: bytes, content_type: str
     ) -> ProfileAvatarResponse:
+        """
+        Загружает аватарку для профиля в объектное хранилище.
+
+        Args:
+            profile_id: Идентификатор профиля
+            file_data: Двоичные данные файла аватарки
+            content_type: MIME-тип файла (например, 'image/jpeg')
+
+        Returns:
+            ProfileAvatarResponse: URL загруженной аватарки
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+            UnsupportedMediaTypeError: Если файл не является изображением
+            FileTooLargeError: Если размер файла превышает 5MB
+        """
         app_logger.info(f"Загрузка аватарки для профиля: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
@@ -115,6 +184,15 @@ class ProfileService:
             return avatar_to_return
 
     async def delete_avatar(self, profile_id: UUID) -> None:
+        """
+        Удаляет аватарку профиля из объектного хранилища.
+
+        Args:
+            profile_id: Идентификатор профиля
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Удаление аватарки для профиля: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
@@ -124,6 +202,15 @@ class ProfileService:
             await self.oss.delete_avatar(profile_id)
 
     async def delete_profile(self, profile_id: UUID) -> None:
+        """
+        Удаляет профиль, его аватарку и все связанные интересы.
+
+        Args:
+            profile_id: Идентификатор профиля
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Удаление профиля: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
@@ -144,6 +231,15 @@ class ProfileService:
             app_logger.info(f"Профиль {profile_id} удален")
 
     async def get_user_profiles(self, user_id: UUID) -> list[ProfileResponse]:
+        """
+        Возвращает все профили, принадлежащие одному пользователю.
+
+        Args:
+            user_id: Идентификатор пользователя
+
+        Returns:
+            list[ProfileResponse]: Список профилей пользователя
+        """
         app_logger.info(f"Получение всех профилей пользователя с ID: {user_id}")
         async with self.uow as uow:
             profiles = await uow.profile.find_all(user_id=user_id)
@@ -165,6 +261,19 @@ class ProfileService:
     async def get_profile_interests(
         self, username: str, accept_language: str
     ) -> list[InterestResponse]:
+        """
+        Возвращает список интересов профиля с локализованными названиями.
+
+        Args:
+            username: Имя профиля
+            accept_language: Код языка для локализации названий интересов (например, 'ru')
+
+        Returns:
+            list[InterestResponse]: Список интересов с переведёнными названиями
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Получение интересов профиля: {username}")
         async with self.uow as uow:
             profile = await uow.profile.find_one(username=username)
@@ -192,6 +301,16 @@ class ProfileService:
         profile_id: UUID,
         profile_interest_add: ProfileInterestAdd,
     ) -> None:
+        """
+        Добавляет новые интересы к профилю, избегая дубликатов.
+
+        Args:
+            profile_id: Идентификатор профиля
+            profile_interest_add: Список идентификаторов интересов для добавления
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
         app_logger.info(f"Добавление интересов к профилю: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
@@ -217,7 +336,17 @@ class ProfileService:
         profile_id: UUID,
         profile_interest_delete: ProfileInterestDelete,
     ) -> None:
-        app_logger.info(f"Удаление всех интересов профиля: {profile_id}")
+        """
+        Удаляет указанные интересы из профиля.
+
+        Args:
+            profile_id: Идентификатор профиля
+            profile_interest_delete: Список идентификаторов интересов для удаления
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+        """
+        app_logger.info(f"Удаление интересов профиля: {profile_id}")
         async with self.uow as uow:
             profile = await uow.profile.get_by_id(profile_id)
             if not profile:
@@ -240,6 +369,17 @@ class ProfileService:
             )
 
     async def validate_profile_ownership(self, profile_id: UUID, user_id: UUID) -> None:
+        """
+        Проверяет, принадлежит ли профиль указанному пользователю.
+
+        Args:
+            profile_id: Идентификатор профиля
+            user_id: Идентификатор пользователя
+
+        Raises:
+            ProfileNotFoundError: Если профиль не найден
+            ProfilePermissionError: Если профиль принадлежит другому пользователю
+        """
         app_logger.info(
             f"Проверка принадлежности профиля {profile_id} пользователю {user_id}"
         )

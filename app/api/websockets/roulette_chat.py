@@ -17,7 +17,7 @@ from app.services.chat_roulette import ChatRouletteService
 from app.services.websocket.chat_roulette import WebSocketChatRouletteService
 from app.utils.object_storage import ObjectStorageService
 
-ws_chat_roulette_router = APIRouter()
+ws_chat_roulette_router = APIRouter(tags=["WebSocket: Чат-рулетка"])
 
 
 async def validate_session_access(session_id: UUID, profile_id: UUID) -> bool:

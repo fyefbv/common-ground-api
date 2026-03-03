@@ -30,6 +30,16 @@ from app.services.websocket.room import WebSocketRoomService
 
 
 class RoomService:
+    """
+    Сервис для управления комнатами и их участниками.
+
+    Обеспечивает бизнес-логику для:
+    - Создания, обновления и удаления комнат
+    - Управления участниками (приглашения, кик, бан, мут, смена ролей)
+    - Отправки и управления сообщениями в комнатах
+    - Работы с WebSocket-уведомлениями в реальном времени
+    """
+
     def __init__(self, uow: UnitOfWork, wrs: WebSocketRoomService):
         self.uow = uow
         self.wrs = wrs
@@ -37,10 +47,23 @@ class RoomService:
     async def create_room(
         self, room_create: RoomCreate, profile_id: UUID
     ) -> RoomResponse:
+        """
+        Создаёт новую комнату и делает текущего пользователя её создателем.
+
+        Args:
+            room_create: Данные для создания комнаты
+            profile_id: Идентификатор профиля создателя
+
+        Returns:
+            RoomResponse: Информация о созданной комнате
+
+        Raises:
+            RoomAlreadyExistsError: Если комната с таким именем уже существует
+        """
         app_logger.info(f"Создание комнаты: {room_create.name}")
 
         async with self.uow as uow:
-            existing_room = await uow.room.find_by_name(room_create.name)
+            existing_room = await uow.room.find_one(name=room_create.name)
             if existing_room:
                 raise RoomAlreadyExistsError(room_create.name)
 
@@ -72,6 +95,19 @@ class RoomService:
     async def get_room(
         self, room_id: UUID, profile_id: UUID | None = None
     ) -> RoomResponse:
+        """
+        Возвращает информацию о комнате.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля (опционально, для проверки участия)
+
+        Returns:
+            RoomResponse: Информация о комнате с данными о количестве участников и сообщений
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+        """
         app_logger.info(f"Получение комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -109,6 +145,21 @@ class RoomService:
         offset: int = 0,
         profile_id: UUID | None = None,
     ) -> list[RoomResponse]:
+        """
+        Выполняет поиск комнат по заданным критериям.
+
+        Args:
+            query: Поисковый запрос по названию или описанию
+            interest_id: Идентификатор интереса для фильтрации
+            tags: Список тегов для фильтрации
+            is_private: Фильтр по статусу приватности
+            limit: Максимальное количество результатов
+            offset: Смещение для пагинации
+            profile_id: Идентификатор профиля (опционально, для проверки участия)
+
+        Returns:
+            list[RoomResponse]: Список комнат, соответствующих критериям поиска
+        """
         app_logger.info(f"Поиск комнат: query={query}, interest_id={interest_id}")
 
         async with self.uow as uow:
@@ -148,6 +199,16 @@ class RoomService:
     async def get_popular_rooms(
         self, limit: int = 20, profile_id: UUID | None = None
     ) -> list[RoomResponse]:
+        """
+        Возвращает список самых популярных комнат по количеству участников и сообщений.
+
+        Args:
+            limit: Максимальное количество возвращаемых комнат (по умолчанию: 20)
+            profile_id: Идентификатор профиля (опционально, для проверки участия)
+
+        Returns:
+            list[RoomResponse]: Список популярных комнат с данными об участии текущего пользователя
+        """
         app_logger.info("Получение популярных комнат")
 
         async with self.uow as uow:
@@ -177,6 +238,15 @@ class RoomService:
             return rooms_response
 
     async def get_user_rooms(self, profile_id: UUID) -> list[RoomResponse]:
+        """
+        Возвращает список комнат, созданных указанным пользователем.
+
+        Args:
+            profile_id: Идентификатор профиля, для которого запрашиваются комнаты
+
+        Returns:
+            list[RoomResponse]: Список комнат, отсортированных по дате создания (сначала новые)
+        """
         app_logger.info(f"Получение комнат профиля: {profile_id}")
 
         async with self.uow as uow:
@@ -210,6 +280,22 @@ class RoomService:
     async def update_room(
         self, room_id: UUID, room_update: RoomUpdate, profile_id: UUID
     ) -> RoomResponse:
+        """
+        Обновляет информацию о комнате (название, описание, теги и т.д.).
+
+        Args:
+            room_id: Идентификатор обновляемой комнаты
+            room_update: Данные для обновления
+            profile_id: Идентификатор профиля, выполняющего обновление
+
+        Returns:
+            RoomResponse: Обновлённая информация о комнате
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            RoomPermissionError: Если пользователь не является создателем комнаты
+            RoomAlreadyExistsError: Если новое название комнаты уже занято
+        """
         app_logger.info(f"Обновление комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -221,7 +307,7 @@ class RoomService:
                 raise RoomPermissionError("Only room creator can update room")
 
             if room_update.name and room_update.name != room.name:
-                existing_room = await uow.room.find_by_name(room_update.name)
+                existing_room = await uow.room.find_one(name=room_update.name)
                 if existing_room:
                     raise RoomAlreadyExistsError(room_update.name)
 
@@ -266,6 +352,17 @@ class RoomService:
             return room_response
 
     async def delete_room(self, room_id: UUID, profile_id: UUID) -> None:
+        """
+        Удаляет комнату и все связанные с ней данные.
+
+        Args:
+            room_id: Идентификатор удаляемой комнаты
+            profile_id: Идентификатор профиля, выполняющего удаление
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            RoomPermissionError: Если пользователь не является создателем комнаты
+        """
         app_logger.info(f"Удаление комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -289,6 +386,22 @@ class RoomService:
                 )
 
     async def join_room(self, room_id: UUID, profile_id: UUID) -> RoomResponse:
+        """
+        Добавляет пользователя в комнату в качестве участника.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля, присоединяющегося к комнате
+
+        Returns:
+            RoomResponse: Информация о комнате с обновлёнными данными об участии
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            RoomPrivateError: Если комната приватная
+            ParticipantBannedError: Если пользователь забанен в комнате
+            RoomFullError: Если комната заполнена
+        """
         app_logger.info(f"Присоединение к комнате: {room_id}")
 
         async with self.uow as uow:
@@ -340,6 +453,18 @@ class RoomService:
             return RoomResponse(**room_dict)
 
     async def leave_room(self, room_id: UUID, profile_id: UUID) -> None:
+        """
+        Убирает пользователя из списка участников комнаты.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля, покидающего комнату
+
+        Raises:
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            RoomNotFoundError: Если комната не найдена
+            RoomPermissionError: Если пользователь является создателем комнаты
+        """
         app_logger.info(f"Выход из комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -373,6 +498,22 @@ class RoomService:
     async def get_room_participants(
         self, room_id: UUID, profile_id: UUID, include_banned: bool = False
     ) -> list[RoomParticipantResponse]:
+        """
+        Возвращает список участников комнаты с информацией об их статусе.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля, запрашивающего информацию
+            include_banned: Включать ли забаненных участников (по умолчанию: False)
+
+        Returns:
+            list[RoomParticipantResponse]: Список участников с информацией об их ролях и статусе
+
+        Raises:
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+            RoomNotFoundError: Если комната не найдена
+        """
         app_logger.info(f"Получение участников комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -408,6 +549,21 @@ class RoomService:
     async def kick_participant(
         self, room_id: UUID, kick_request: RoomKickRequest, profile_id: UUID
     ) -> None:
+        """
+        Исключает участника из комнаты.
+
+        Args:
+            room_id: Идентификатор комнаты
+            kick_request: Запрос с идентификатором исключаемого участника
+            profile_id: Идентификатор профиля, выполняющего исключение
+
+        Raises:
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            ParticipantBannedError: Если запрашивающий забанен
+            RoomNotFoundError: Если комната не найдена
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+        """
         app_logger.info(
             f"Исключение участника {kick_request.profile_id} из комнаты {room_id}"
         )
@@ -467,6 +623,22 @@ class RoomService:
     async def send_message(
         self, room_id: UUID, message_create: RoomMessageCreate, profile_id: UUID
     ) -> RoomMessageResponse:
+        """
+        Отправляет новое сообщение в комнату от имени пользователя.
+
+        Args:
+            room_id: Идентификатор комнаты
+            message_create: Данные нового сообщения
+            profile_id: Идентификатор профиля отправителя
+
+        Returns:
+            RoomMessageResponse: Информация о созданном сообщении
+
+        Raises:
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+            ParticipantMutedError: Если пользователь замучен
+        """
         app_logger.info(f"Отправка сообщения в комнату: {room_id}")
 
         async with self.uow as uow:
@@ -512,6 +684,22 @@ class RoomService:
         before: datetime | None = None,
         limit: int = 50,
     ) -> RoomMessageListResponse:
+        """
+        Возвращает список сообщений комнаты с поддержкой пагинации.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля, запрашивающего сообщения
+            before: Временная метка для фильтрации сообщений (опционально)
+            limit: Максимальное количество возвращаемых сообщений (по умолчанию: 50)
+
+        Returns:
+            RoomMessageListResponse: Список сообщений с информацией о пагинации
+
+        Raises:
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+        """
         app_logger.info(f"Получение сообщений комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -542,6 +730,23 @@ class RoomService:
     async def update_message(
         self, message_id: UUID, message_update: RoomMessageUpdate, profile_id: UUID
     ) -> RoomMessageResponse:
+        """
+        Обновляет существующее сообщение в комнате.
+
+        Args:
+            message_id: Идентификатор сообщения
+            message_update: Данные для обновления
+            profile_id: Идентификатор профиля, выполняющего обновление
+
+        Returns:
+            RoomMessageResponse: Обновлённое сообщение
+
+        Raises:
+            RoomMessageNotFoundError: Если сообщение не найдено
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+            RoomPermissionError: Если пользователь не является отправителем сообщения
+        """
         app_logger.info(f"Обновление сообщения: {message_id}")
 
         async with self.uow as uow:
@@ -577,6 +782,20 @@ class RoomService:
             return RoomMessageResponse.model_validate(updated_message)
 
     async def delete_message(self, message_id: UUID, profile_id: UUID) -> None:
+        """
+        Удаляет сообщение из комнаты (мягкое удаление).
+
+        Args:
+            message_id: Идентификатор удаляемого сообщения
+            profile_id: Идентификатор профиля, выполняющего удаление
+
+        Raises:
+            RoomMessageNotFoundError: Если сообщение не найдено
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+            RoomPermissionError: Если пользователь не является отправителем сообщения
+                             или не имеет прав модератора/создателя
+        """
         app_logger.info(f"Удаление сообщения: {message_id}")
 
         async with self.uow as uow:
@@ -608,6 +827,21 @@ class RoomService:
     async def mute_participant(
         self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
     ) -> None:
+        """
+        Заглушает участника в комнате, запрещая ему отправлять сообщения.
+
+        Args:
+            room_id: Идентификатор комнаты
+            target_profile_id: Идентификатор заглушаемого участника
+            profile_id: Идентификатор профиля, выполняющего действие
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            ParticipantBannedError: Если запрашивающий забанен
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+        """
         app_logger.info(f"Мут участника {target_profile_id} в комнате {room_id}")
 
         async with self.uow as uow:
@@ -660,6 +894,21 @@ class RoomService:
     async def unmute_participant(
         self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
     ) -> None:
+        """
+        Снимает мут с участника в комнате.
+
+        Args:
+            room_id: Идентификатор комнаты
+            target_profile_id: Идентификатор размучиваемого участника
+            profile_id: Идентификатор профиля, выполняющего действие
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            ParticipantBannedError: Если запрашивающий забанен
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+        """
         app_logger.info(
             f"Снятие мута с участника {target_profile_id} в комнате {room_id}"
         )
@@ -707,6 +956,21 @@ class RoomService:
     async def ban_participant(
         self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
     ) -> None:
+        """
+        Банит участника в комнате, запрещая ему вход и участие.
+
+        Args:
+            room_id: Идентификатор комнаты
+            target_profile_id: Идентификатор банимого участника
+            profile_id: Идентификатор профиля, выполняющего действие
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            ParticipantBannedError: Если запрашивающий забанен
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+        """
         app_logger.info(f"Бан участника {target_profile_id} в комнате {room_id}")
 
         async with self.uow as uow:
@@ -759,6 +1023,21 @@ class RoomService:
     async def unban_participant(
         self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
     ) -> None:
+        """
+        Снимает бан с участника в комнате.
+
+        Args:
+            room_id: Идентификатор комнаты
+            target_profile_id: Идентификатор разбаниваемого участника
+            profile_id: Идентификатор профиля, выполняющего действие
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            ParticipantBannedError: Если запрашивающий забанен
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+        """
         app_logger.info(f"Разбан участника {target_profile_id} в комнате {room_id}")
 
         async with self.uow as uow:
@@ -804,6 +1083,22 @@ class RoomService:
     async def get_banned_participants(
         self, room_id: UUID, profile_id: UUID
     ) -> list[RoomParticipantResponse]:
+        """
+        Возвращает список забаненных участников в комнате.
+
+        Args:
+            room_id: Идентификатор комнаты
+            profile_id: Идентификатор профиля, запрашивающего информацию
+
+        Returns:
+            list[RoomParticipantResponse]: Список забаненных участников
+
+        Raises:
+            NotRoomMemberError: Если пользователь не является участником комнаты
+            ParticipantBannedError: Если пользователь забанен
+            RoomNotFoundError: Если комната не найдена
+            RoomPermissionError: Если у пользователя недостаточно прав
+        """
         app_logger.info(f"Получение забаненных участников комнаты: {room_id}")
 
         async with self.uow as uow:
@@ -859,6 +1154,26 @@ class RoomService:
         new_role: RoomParticipantRole,
         profile_id: UUID,
     ) -> RoomParticipantResponse:
+        """
+        Изменяет роль участника в комнате (например, на модератора).
+
+        Args:
+            room_id: Идентификатор комнаты
+            target_profile_id: Идентификатор участника, роль которого изменяется
+            new_role: Новая роль (MEMBER или MODERATOR)
+            profile_id: Идентификатор профиля, выполняющего действие
+
+        Returns:
+            RoomParticipantResponse: Информация об участнике с обновлённой ролью
+
+        Raises:
+            RoomNotFoundError: Если комната не найдена
+            NotRoomMemberError: Если запрашивающий не является участником комнаты
+            RoomPermissionError: Если у запрашивающего недостаточно прав
+            RoomParticipantNotFoundError: Если целевой участник не найден
+            InvalidRoleError: Если указана недопустимая роль
+            ParticipantAlreadyHasRoleError: Если участник уже имеет указанную роль
+        """
         app_logger.info(
             f"Изменение роли участника {target_profile_id} в комнате {room_id}"
         )

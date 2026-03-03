@@ -15,4 +15,14 @@ async def get_interests(
     interest_service: InterestService = Depends(get_interest_service),
     accept_language: str = Depends(get_accept_language),
 ) -> list[InterestResponse]:
+    """
+    Возвращает список всех интересов с локализованными названиями.
+
+    Args:
+        interest_service: Сервис для работы с интересами (инъекция зависимости)
+        accept_language: Код языка для локализации (например, 'ru', 'en')
+
+    Returns:
+        list[InterestResponse]: Список интересов с переведёнными названиями
+    """
     return await interest_service.get_interests(accept_language)

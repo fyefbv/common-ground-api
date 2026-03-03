@@ -28,6 +28,16 @@ async def get_profiles(
     profile_service: ProfileService = Depends(get_profile_service),
     _: UUID = Depends(get_current_user),
 ) -> list[ProfileResponse]:
+    """
+    Возвращает список всех профилей в системе.
+
+    Args:
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        _: Идентификатор текущего пользователя (требуется аутентификация)
+
+    Returns:
+        list[ProfileResponse]: Список профилей с аватарками
+    """
     return await profile_service.get_profiles()
 
 
@@ -39,6 +49,21 @@ async def create_profile(
     profile_service: ProfileService = Depends(get_profile_service),
     user_id: UUID = Depends(get_current_user),
 ) -> ProfileResponse:
+    """
+    Создаёт новый профиль для текущего пользователя.
+
+    Args:
+        profile_create: Данные для создания профиля (username, биография и др.)
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_id: Идентификатор текущего пользователя (инъекция зависимости)
+
+    Returns:
+        ProfileResponse: Информация о созданном профиле
+
+    Notes:
+        - Автоматически привязывает профиль к текущему пользователю.
+        - Возвращает статус 201 Created при успехе.
+    """
     profile_create.user_id = user_id
     return await profile_service.create_profile(profile_create)
 
@@ -48,6 +73,16 @@ async def get_user_profiles(
     profile_service: ProfileService = Depends(get_profile_service),
     user_id: UUID = Depends(get_current_user),
 ) -> list[ProfileResponse]:
+    """
+    Возвращает все профили, принадлежащие текущему пользователю.
+
+    Args:
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_id: Идентификатор текущего пользователя (инъекция зависимости)
+
+    Returns:
+        list[ProfileResponse]: Список профилей пользователя
+    """
     return await profile_service.get_user_profiles(user_id)
 
 
@@ -57,6 +92,17 @@ async def get_profile(
     profile_service: ProfileService = Depends(get_profile_service),
     _: UUID = Depends(get_current_user),
 ) -> ProfileResponse:
+    """
+    Возвращает информацию о профиле по его username.
+
+    Args:
+        username: Уникальное имя профиля
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        _: Идентификатор текущего пользователя (требуется аутентификация)
+
+    Returns:
+        ProfileResponse: Данные профиля с URL аватарки
+    """
     return await profile_service.get_profile(username)
 
 
@@ -66,6 +112,17 @@ async def update_profile(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ProfileResponse:
+    """
+    Обновляет данные текущего профиля пользователя.
+
+    Args:
+        profile_update: Данные для обновления (биография, интересы и др.)
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ProfileResponse: Обновлённая информация о профиле
+    """
     return await profile_service.update_profile(user_profile.profile_id, profile_update)
 
 
@@ -74,6 +131,16 @@ async def delete_profile(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Удаляет текущий профиль пользователя вместе с аватаркой и интересами.
+
+    Args:
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе удаления
+    """
     await profile_service.delete_profile(user_profile.profile_id)
     return {"detail": "Profile deleted successfully"}
 
@@ -84,6 +151,21 @@ async def upload_avatar(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> ProfileAvatarResponse:
+    """
+    Загружает аватарку для текущего профиля пользователя.
+
+    Args:
+        file: Файл аватарки (ожидается изображение)
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ProfileAvatarResponse: URL загруженной аватарки
+
+    Notes:
+        - Поддерживаются изображения до 5MB.
+        - Возвращает предподписанный URL для доступа к аватарке.
+    """
     file_data = await file.read()
 
     return await profile_service.upload_avatar(
@@ -98,6 +180,16 @@ async def delete_avatar(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Удаляет аватарку текущего профиля пользователя.
+
+    Args:
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе удаления
+    """
     await profile_service.delete_avatar(user_profile.profile_id)
     return {"detail": "Profile avatar deleted successfully"}
 
@@ -109,6 +201,18 @@ async def get_profile_interests(
     accept_language: str = Depends(get_accept_language),
     _: UUID = Depends(get_current_user),
 ) -> list[InterestResponse]:
+    """
+    Возвращает интересы профиля с локализованными названиями.
+
+    Args:
+        username: Имя профиля
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        accept_language: Код языка для локализации (например, 'ru')
+        _: Идентификатор текущего пользователя (требуется аутентификация)
+
+    Returns:
+        list[InterestResponse]: Список интересов с переведёнными названиями
+    """
     return await profile_service.get_profile_interests(username, accept_language)
 
 
@@ -118,6 +222,17 @@ async def add_profile_interests(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Добавляет интересы к текущему профилю пользователя.
+
+    Args:
+        profile_interest_add: Список идентификаторов интересов для добавления
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе добавления
+    """
     await profile_service.add_profile_interests(
         profile_id=user_profile.profile_id, profile_interest_add=profile_interest_add
     )
@@ -130,6 +245,17 @@ async def delete_profile_interests(
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> JSONResponse:
+    """
+    Удаляет интересы из текущего профиля пользователя.
+
+    Args:
+        profile_interest_delete: Список идентификаторов интересов для удаления
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        JSONResponse: Сообщение об успехе удаления
+    """
     await profile_service.delete_profile_interests(
         profile_id=user_profile.profile_id,
         profile_interest_delete=profile_interest_delete,

@@ -10,21 +10,6 @@ from app.core.exceptions.object_storage import (
 )
 from app.core.logger import app_logger
 
-# async def object_not_found_handler(request: Request, exc: ObjectNotFoundError):
-#     app_logger.warning(f"Object not found: {exc.detail}")
-
-#     return JSONResponse(
-#         status_code=exc.status_code,
-#         content={
-#             "success": False,
-#             "error": {
-#                 "code": "object_not_found",
-#                 "message": exc.detail,
-#                 "timestamp": datetime.now(timezone.utc).isoformat(),
-#             },
-#         },
-#     )
-
 
 async def object_upload_handler(request: Request, exc: ObjectUploadError):
     app_logger.error(f"Failed to upload object: {exc.detail}")

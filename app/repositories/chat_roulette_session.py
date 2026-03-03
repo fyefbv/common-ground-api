@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, join, or_, select, update
+from sqlalchemy import and_, delete, desc, func, join, or_, select, update
 
 from app.db.models.chat_roulette_search import ChatRouletteSearch
 from app.db.models.chat_roulette_session import (
@@ -289,8 +289,6 @@ class ChatRouletteSessionRepository(Repository):
         return total_sessions, completed_sessions, total_avg
 
     async def delete_waiting_sessions(self, profile_id: UUID) -> None:
-        from sqlalchemy import delete, or_
-
         stmt = delete(self.model).where(
             or_(
                 self.model.profile1_id == profile_id,

@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict
 
 class RoomEventType(str, Enum):
     MESSAGE_SENT = "message_sent"
-    MESSAGE_UPDATED = "message_updated"
-    MESSAGE_DELETED = "message_deleted"
+    # MESSAGE_UPDATED = "message_updated"
+    # MESSAGE_DELETED = "message_deleted"
 
     PARTICIPANT_JOINED = "participant_joined"
     PARTICIPANT_LEFT = "participant_left"

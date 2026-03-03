@@ -8,20 +8,20 @@ from pydantic import BaseModel, ConfigDict
 
 class ChatRouletteEventType(str, Enum):
     MESSAGE_SENT = "message_sent"
-    MESSAGE_RECEIVED = "message_received"
+    # MESSAGE_RECEIVED = "message_received"
 
-    SESSION_STARTED = "session_started"
+    # SESSION_STARTED = "session_started"
     SESSION_ENDED = "session_ended"
     SESSION_EXTENDED = "session_extended"
-    SESSION_EXPIRED = "session_expired"
+    # SESSION_EXPIRED = "session_expired"
 
-    TIMER_UPDATE = "timer_update"
-    TIME_ALMOST_UP = "time_almost_up"
+    # TIMER_UPDATE = "timer_update"
+    # TIME_ALMOST_UP = "time_almost_up"
 
     EXTENSION_REQUESTED = "extension_requested"
     EXTENSION_APPROVED = "extension_approved"
-    EXTENSION_REJECTED = "extension_rejected"
-    EXTENSION_CANCELLED = "extension_cancelled"
+    # EXTENSION_REJECTED = "extension_rejected"
+    # EXTENSION_CANCELLED = "extension_cancelled"
 
     CONNECTION_ESTABLISHED = "connection_established"
     PARTNER_CONNECTED = "partner_connected"

@@ -10,18 +10,10 @@ from app.repositories.base import Repository
 class ChatRouletteSearchRepository(Repository):
     model = ChatRouletteSearch
 
-    async def find_active_search(self, profile_id: UUID) -> ChatRouletteSearch | None:
-        stmt = select(self.model).where(
-            self.model.profile_id == profile_id, self.model.is_active == True
-        )
-
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def create_or_update_search(
         self, profile_id: UUID, priority_interest_ids: list[UUID] | None = None
     ) -> ChatRouletteSearch:
-        existing_search = await self.find_active_search(profile_id)
+        existing_search = await self.find_one(profile_id=profile_id, is_active=True)
 
         if existing_search:
             update_data = {
