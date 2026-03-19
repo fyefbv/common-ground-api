@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from app.core.exceptions.file import FileTooLargeError, UnsupportedMediaTypeError
+from app.core.exceptions.interest import InterestNotFoundError
 from app.core.exceptions.profile import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
@@ -16,7 +17,6 @@ from app.schemas.profile import (
     ProfileUpdate,
 )
 from app.schemas.profile_interest import ProfileInterestAdd, ProfileInterestDelete
-from app.services.interest import InterestService
 from app.utils.object_storage import ObjectStorageService
 
 
@@ -126,6 +126,7 @@ class ProfileService:
 
         Raises:
             ProfileNotFoundError: Если профиль не найден
+            ProfileAlreadyExistsError: Если username уже занят другим профилем
         """
         app_logger.info(f"Обновление профиля: {profile_id}")
         async with self.uow as uow:
@@ -134,6 +135,14 @@ class ProfileService:
                 raise ProfileNotFoundError(profile_id)
 
             update_dict = profile_update.model_dump(exclude_unset=True)
+
+            if "username" in update_dict:
+                existing_profile = await uow.profile.find_one(
+                    username=update_dict["username"]
+                )
+                if existing_profile and existing_profile.id != profile_id:
+                    raise ProfileAlreadyExistsError(update_dict["username"])
+
             updated_profile = await uow.profile.update(profile.id, update_dict)
 
             profile_to_return = ProfileResponse.model_validate(updated_profile)
@@ -310,6 +319,7 @@ class ProfileService:
 
         Raises:
             ProfileNotFoundError: Если профиль не найден
+            InterestNotFoundError: Если указан несуществующий интерес
         """
         app_logger.info(f"Добавление интересов к профилю: {profile_id}")
         async with self.uow as uow:
@@ -321,9 +331,13 @@ class ProfileService:
 
             existing_interest_ids = [interest.id for interest in profile_interests]
 
-            interests_to_add = [
-                id for id in profile_interest_add.ids if id not in existing_interest_ids
-            ]
+            interests_to_add = []
+            for interest_id in profile_interest_add.ids:
+                if interest_id not in existing_interest_ids:
+                    interest = await uow.interest.get_by_id(interest_id)
+                    if not interest:
+                        raise InterestNotFoundError(interest_id)
+                    interests_to_add.append(interest_id)
 
             await uow.profile_interest.add_by_ids(profile_id, interests_to_add)
 

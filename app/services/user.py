@@ -104,12 +104,22 @@ class UserService:
 
         Raises:
             UserNotFoundError: Если пользователь не найден
+            UserAlreadyExistsError: Если email уже занят другим пользователем
         """
         app_logger.info(f"Обновление пользователя с ID: {user_id}")
         user_dict: dict = user_update.model_dump(exclude_unset=True)
-        if "password" in user_dict:
-            user_dict["password_hash"] = get_password_hash(user_dict.pop("password"))
+
         async with self.uow as uow:
+            if "email" in user_dict:
+                existing_user = await uow.user.find_one(email=user_dict["email"])
+                if existing_user and existing_user.id != user_id:
+                    raise UserAlreadyExistsError(user_dict["email"])
+
+            if "password" in user_dict:
+                user_dict["password_hash"] = get_password_hash(
+                    user_dict.pop("password")
+                )
+
             user = await uow.user.update(user_id, user_dict)
             if not user:
                 raise UserNotFoundError(user_id)
