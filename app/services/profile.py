@@ -63,12 +63,17 @@ class ProfileService:
             app_logger.info(f"Профиль создан с ID: {profile_to_return.id}")
             return profile_to_return
 
-    async def get_profile(self, username: str) -> ProfileResponse:
+    async def get_profile(
+        self,
+        username: str | None = None,
+        profile_id: UUID | None = None,
+    ) -> ProfileResponse:
         """
-        Возвращает информацию о профиле по его username.
+        Возвращает информацию о профиле по его username или profile_id.
 
         Args:
-            username: Уникальное имя профиля
+            username: Уникальное имя профиля (опционально)
+            profile_id: Идентификатор профиля (опционально)
 
         Returns:
             ProfileResponse: Данные профиля, включая URL аватарки
@@ -76,16 +81,24 @@ class ProfileService:
         Raises:
             ProfileNotFoundError: Если профиль не найден
         """
-        app_logger.info(f"Получение профиля: {username}")
+        if not profile_id and not username:
+            raise ValueError("Either profile_id or username must be provided")
+
+        app_logger.info(f"Получение профиля: {profile_id or username}")
         async with self.uow as uow:
-            profile = await uow.profile.find_one(username=username)
-            if not profile:
-                raise ProfileNotFoundError(username)
+            if username:
+                profile = await uow.profile.find_one(username=username)
+                if not profile:
+                    raise ProfileNotFoundError(username)
+            else:
+                profile = await uow.profile.get_by_id(profile_id)
+                if not profile:
+                    raise ProfileNotFoundError(profile_id)
 
             profile_to_return = ProfileResponse.model_validate(profile)
             profile_to_return.avatar_url = await self.oss.get_avatar_url(profile.id)
 
-            app_logger.info(f"Профиль {username} найден")
+            app_logger.info(f"Профиль {profile_id or username} найден")
             return profile_to_return
 
     async def get_profiles(self) -> list[ProfileResponse]:
@@ -154,29 +167,48 @@ class ProfileService:
             return profile_to_return
 
     async def upload_avatar(
-        self, profile_id: UUID, file_data: bytes, content_type: str
+        self,
+        file_data: bytes,
+        content_type: str,
+        profile_id: UUID | None = None,
+        username: str | None = None,
+        user_id: UUID | None = None,
     ) -> ProfileAvatarResponse:
         """
         Загружает аватарку для профиля в объектное хранилище.
 
         Args:
-            profile_id: Идентификатор профиля
+            profile_id: Идентификатор профиля (опционально)
+            username: Имя профиля (опционально)
             file_data: Двоичные данные файла аватарки
             content_type: MIME-тип файла (например, 'image/jpeg')
+            user_id: Идентификатор пользователя (опционально, для проверки принадлежности профиля)
 
         Returns:
             ProfileAvatarResponse: URL загруженной аватарки
 
         Raises:
             ProfileNotFoundError: Если профиль не найден
+            ProfilePermissionError: Если профиль принадлежит другому пользователю
             UnsupportedMediaTypeError: Если файл не является изображением
             FileTooLargeError: Если размер файла превышает 5MB
         """
-        app_logger.info(f"Загрузка аватарки для профиля: {profile_id}")
+        if not profile_id and not username:
+            raise ValueError("Either profile_id or username must be provided")
+
+        app_logger.info(f"Загрузка аватарки для профиля: {profile_id or username}")
         async with self.uow as uow:
-            profile = await uow.profile.get_by_id(profile_id)
-            if not profile:
-                raise ProfileNotFoundError(profile_id)
+            if username:
+                profile = await uow.profile.find_one(username=username)
+                if not profile:
+                    raise ProfileNotFoundError(username)
+                if user_id and profile.user_id != user_id:
+                    raise ProfilePermissionError(profile_id)
+                profile_id = profile.id
+            else:
+                profile = await uow.profile.get_by_id(profile_id)
+                if not profile:
+                    raise ProfileNotFoundError(profile_id)
 
             if not content_type.startswith("image/"):
                 raise UnsupportedMediaTypeError("File must be an image")
@@ -307,25 +339,41 @@ class ProfileService:
 
     async def add_profile_interests(
         self,
-        profile_id: UUID,
         profile_interest_add: ProfileInterestAdd,
+        profile_id: UUID | None = None,
+        username: str | None = None,
+        user_id: UUID | None = None,
     ) -> None:
         """
         Добавляет новые интересы к профилю, избегая дубликатов.
 
         Args:
-            profile_id: Идентификатор профиля
+            profile_id: Идентификатор профиля (опционально)
+            username: Имя профиля (опционально)
             profile_interest_add: Список идентификаторов интересов для добавления
+            user_id: Идентификатор пользователя (опционально, для проверки принадлежности профиля)
 
         Raises:
             ProfileNotFoundError: Если профиль не найден
+            ProfilePermissionError: Если профиль принадлежит другому пользователю
             InterestNotFoundError: Если указан несуществующий интерес
         """
-        app_logger.info(f"Добавление интересов к профилю: {profile_id}")
+        if not profile_id and not username:
+            raise ValueError("Either profile_id or username must be provided")
+
+        app_logger.info(f"Добавление интересов к профилю: {profile_id or username}")
         async with self.uow as uow:
-            profile = await uow.profile.get_by_id(profile_id)
-            if not profile:
-                raise ProfileNotFoundError(profile_id)
+            if username:
+                profile = await uow.profile.find_one(username=username)
+                if not profile:
+                    raise ProfileNotFoundError(username)
+                if user_id and profile.user_id != user_id:
+                    raise ProfilePermissionError(profile_id)
+                profile_id = profile.id
+            else:
+                profile = await uow.profile.get_by_id(profile_id)
+                if not profile:
+                    raise ProfileNotFoundError(profile_id)
 
             profile_interests = await uow.profile.get_profile_interests(profile_id)
 

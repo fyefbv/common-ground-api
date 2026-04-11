@@ -86,6 +86,24 @@ async def get_user_profiles(
     return await profile_service.get_user_profiles(user_id)
 
 
+@profiles_router.get("/current", response_model=ProfileResponse)
+async def get_current_profile_by_token(
+    user_profile: UserProfile = Depends(get_current_profile),
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ProfileResponse:
+    """
+    Возвращает текущий профиль пользователя по токену.
+
+    Args:
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+
+    Returns:
+        ProfileResponse: Данные текущего профиля пользователя
+    """
+    return await profile_service.get_profile(profile_id=user_profile.profile_id)
+
+
 @profiles_router.get("/{username}", response_model=ProfileResponse)
 async def get_profile(
     username: str,
@@ -103,7 +121,7 @@ async def get_profile(
     Returns:
         ProfileResponse: Данные профиля с URL аватарки
     """
-    return await profile_service.get_profile(username)
+    return await profile_service.get_profile(username=username)
 
 
 @profiles_router.patch("/me", response_model=ProfileResponse)
@@ -146,7 +164,7 @@ async def delete_profile(
 
 
 @profiles_router.post("/me/avatar", response_model=ProfileAvatarResponse)
-async def upload_avatar(
+async def upload_avatar_to_me(
     file: UploadFile = File(),
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
@@ -170,6 +188,40 @@ async def upload_avatar(
 
     return await profile_service.upload_avatar(
         profile_id=user_profile.profile_id,
+        file_data=file_data,
+        content_type=file.content_type,
+    )
+
+
+@profiles_router.post("/{username}/avatar", response_model=ProfileAvatarResponse)
+async def upload_avatar_by_username(
+    username: str,
+    file: UploadFile = File(),
+    profile_service: ProfileService = Depends(get_profile_service),
+    user_id: UUID = Depends(get_current_user),
+) -> ProfileAvatarResponse:
+    """
+    Загружает аватарку для профиля по его username.
+
+    Args:
+        username: Имя профиля
+        file: Файл аватарки (ожидается изображение)
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        _: Идентификатор текущего пользователя (требуется аутентификация)
+
+    Returns:
+        ProfileAvatarResponse: URL загруженной аватарки
+
+    Raises:
+        ProfileNotFoundError: Если профиль не найден
+        UnsupportedMediaTypeError: Если файл не является изображением
+        FileTooLargeError: Если размер файла превышает 5MB
+    """
+    file_data = await file.read()
+
+    return await profile_service.upload_avatar(
+        username=username,
+        user_id=user_id,
         file_data=file_data,
         content_type=file.content_type,
     )
@@ -217,7 +269,7 @@ async def get_profile_interests(
 
 
 @profiles_router.post("/me/interests")
-async def add_profile_interests(
+async def add_profile_interests_to_me(
     profile_interest_add: ProfileInterestAdd,
     profile_service: ProfileService = Depends(get_profile_service),
     user_profile: UserProfile = Depends(get_current_profile),
@@ -237,6 +289,35 @@ async def add_profile_interests(
         profile_id=user_profile.profile_id, profile_interest_add=profile_interest_add
     )
     return {"detail": "Profile interests added successfully"}
+
+
+@profiles_router.post("/{username}/interests")
+async def add_profile_interests_by_username(
+    username: str,
+    profile_interest_add: ProfileInterestAdd,
+    profile_service: ProfileService = Depends(get_profile_service),
+    user_id: UUID = Depends(get_current_user),
+) -> JSONResponse:
+    """
+    Добавляет интересы к профилю по его username.
+
+    Args:
+        username: Имя профиля
+        profile_interest_add: Список идентификаторов интересов для добавления
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        _: Идентификатор текущего пользователя (требуется аутентификация)
+
+    Returns:
+        JSONResponse: Сообщение об успехе добавления
+
+    Raises:
+        ProfileNotFoundError: Если профиль не найден
+        InterestNotFoundError: Если указан несуществующий интерес
+    """
+    await profile_service.add_profile_interests(
+        username=username, user_id=user_id, profile_interest_add=profile_interest_add
+    )
+    return {"detail": f"Profile interests added successfully"}
 
 
 @profiles_router.delete("/me/interests")
