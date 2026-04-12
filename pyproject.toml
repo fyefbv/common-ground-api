@@ -2,9 +2,9 @@
 line-length = 88
 target-version = ['py312']
 include = '\.pyi?$'
-exclude = '''
+extend-exclude = '''
 /(
-  | \.venv
+  \.venv
   | alembic
   | __pycache__
   | \.git
@@ -13,7 +13,7 @@ exclude = '''
   | \.env
   | \.env\.example
   | alembic\.ini
-  | requirements\.txt
+  | requirements.*\.txt
 )/
 '''
 
@@ -28,7 +28,7 @@ ensure_newline_before_comments = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests/endpoints"]
+testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-v --tb=short --color=yes"
+addopts = "-v --tb=short --color=yes --cov=app --cov-report=term-missing --cov-report=xml"
