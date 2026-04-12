@@ -37,12 +37,19 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
       - name: Run unit tests
+        env:
+          DB_HOST: dummy
+          DB_PORT: 5432
+          DB_USER: dummy
+          DB_PASS: dummy
+          DB_NAME: dummy
+          JWT_SECRET_KEY: dummy
+          JWT_ALGORITHM: HS256
+          S3_ACCESS_KEY_ID: dummy
+          S3_SECRET_ACCESS_KEY: dummy
+          S3_ENDPOINT_URL: http://dummy
+          S3_BUCKET_NAME: dummy
         run: pytest tests/unit -v --cov=app --cov-report=xml
-      - name: Upload coverage to Codecov (optional)
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
 
   integration-tests:
     runs-on: ubuntu-latest
