@@ -13,9 +13,6 @@ from app.core.websocket.chat_roulette_events import (
     ChatRouletteWebSocketMessage,
 )
 from app.db.unit_of_work import UnitOfWork
-from app.services.chat_roulette import ChatRouletteService
-from app.services.websocket.chat_roulette import WebSocketChatRouletteService
-from app.utils.object_storage import ObjectStorageService
 
 ws_chat_roulette_router = APIRouter(tags=["WebSocket: Чат-рулетка"])
 

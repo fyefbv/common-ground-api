@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 

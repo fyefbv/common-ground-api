@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from sqlalchemy import and_, desc, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.room import Room
 from app.db.models.room_participant import RoomParticipant
@@ -67,20 +66,6 @@ class RoomRepository(Repository):
                 desc(self.model.created_at),
             )
             .limit(limit)
-        )
-
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def get_user_rooms(self, profile_id: UUID) -> list[Room]:
-        stmt = (
-            select(self.model)
-            .join(RoomParticipant, RoomParticipant.room_id == self.model.id)
-            .where(
-                RoomParticipant.profile_id == profile_id,
-                RoomParticipant.is_banned == False,
-            )
-            .order_by(self.model.last_activity_at.desc())
         )
 
         result = await self.session.execute(stmt)

@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import and_, delete, desc, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.room_message import RoomMessage
 from app.db.models.room_participant import RoomParticipant, RoomParticipantRole

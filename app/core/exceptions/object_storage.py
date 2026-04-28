@@ -1,12 +1,5 @@
 from fastapi import HTTPException, status
 
-# class ObjectNotFoundError(HTTPException):
-#     def __init__(self, object_name: str):
-#         super().__init__(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"Object {object_name} not found",
-#         )
-
 
 class ObjectUploadError(HTTPException):
     def __init__(self, object_name: str):

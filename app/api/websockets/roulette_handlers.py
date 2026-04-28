@@ -1,11 +1,7 @@
-import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import WebSocket
-
-from app.api.websockets.roulette_connection_manager import roulette_connection_manager
 from app.core.config import settings
 from app.core.logger import app_logger
 from app.core.websocket.chat_roulette_events import (
@@ -13,7 +9,6 @@ from app.core.websocket.chat_roulette_events import (
     ChatRouletteWebSocketMessage,
 )
 from app.db.unit_of_work import UnitOfWork
-from app.schemas.chat_roulette import ChatRouletteMessageCreate
 from app.services.chat_roulette import ChatRouletteService
 from app.services.websocket.chat_roulette import WebSocketChatRouletteService
 from app.utils.object_storage import ObjectStorageService

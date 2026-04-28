@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
