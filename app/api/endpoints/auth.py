@@ -7,7 +7,6 @@ from app.core.auth import create_tokens, refresh_tokens
 from app.schemas.auth import ProfileTokenCreate, TokenRefresh, TokenResponse
 from app.schemas.user import UserCreate, UserLogin
 from app.services.profile import ProfileService
-
 from app.services.user import UserService
 
 auth_router = APIRouter(prefix="/auth", tags=["Аутентификация"])
@@ -16,7 +15,6 @@ auth_router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 @auth_router.post(
     "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
 )
-
 async def register(
     user_create: UserCreate, user_service: UserService = Depends(get_user_service)
 ) -> TokenResponse:

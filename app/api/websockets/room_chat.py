@@ -2,10 +2,8 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
-from app.api.dependencies import get_unit_of_work
 from app.api.websockets.room_connection_manager import room_connection_manager
 from app.api.websockets.room_handlers import RoomWebSocketHandler
 from app.core.logger import app_logger

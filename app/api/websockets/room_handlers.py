@@ -1,9 +1,6 @@
-import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
-
-from fastapi import WebSocket
 
 from app.api.websockets.room_connection_manager import room_connection_manager
 from app.core.logger import app_logger

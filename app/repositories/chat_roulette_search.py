@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, delete, desc, select, update
+from sqlalchemy import delete, select, update
 
 from app.db.models.chat_roulette_search import ChatRouletteSearch
 from app.repositories.base import Repository
