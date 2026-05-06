@@ -138,36 +138,51 @@ class RoomService:
     async def search_rooms(
         self,
         query: str | None = None,
-        interest_id: UUID | None = None,
+        interest_ids: list[UUID] | None = None,
         tags: list[str] | None = None,
-        is_private: bool | None = False,
+        my_rooms: bool = False,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         limit: int = 50,
         offset: int = 0,
         profile_id: UUID | None = None,
     ) -> list[RoomResponse]:
         """
-        Выполняет поиск комнат по заданным критериям.
+        Выполняет поиск комнат с гибкими фильтрами и сортировкой.
+
+        Если my_rooms=True, возвращаются комнаты текущего пользователя (включая приватные).
+        Иначе только публичные. Сортировка по created_at или participants (количество участников).
 
         Args:
             query: Поисковый запрос по названию или описанию
-            interest_id: Идентификатор интереса для фильтрации
+            interest_ids: Список идентификаторов интересов для фильтрации
             tags: Список тегов для фильтрации
-            is_private: Фильтр по статусу приватности
+            my_rooms: Если True, показать только комнаты текущего пользователя
+            sort_by: Критерий сортировки (created_at или participants)
+            sort_order: Порядок сортировки (asc или desc)
             limit: Максимальное количество результатов
             offset: Смещение для пагинации
-            profile_id: Идентификатор профиля (опционально, для проверки участия)
+            profile_id: Идентификатор профиля (для проверки участия и фильтра "мои комнаты")
 
         Returns:
-            list[RoomResponse]: Список комнат, соответствующих критериям поиска
+            list[RoomResponse]: Список комнат, соответствующих критериям
         """
-        app_logger.info(f"Поиск комнат: query={query}, interest_id={interest_id}")
+        app_logger.info(
+            f"Поиск комнат: query={query}, interest_ids={interest_ids}, my_rooms={my_rooms}"
+        )
 
         async with self.uow as uow:
+            creator_id = profile_id if my_rooms else None
+            is_private_filter = None if my_rooms else False
+
             rooms = await uow.room.search_rooms(
                 query=query,
-                interest_id=interest_id,
+                interest_ids=interest_ids,
                 tags=tags,
-                is_private=is_private,
+                creator_id=creator_id,
+                is_private=is_private_filter,
+                sort_by=sort_by,
+                sort_order=sort_order,
                 limit=limit,
                 offset=offset,
             )
@@ -196,86 +211,10 @@ class RoomService:
             app_logger.info(f"Найдено {len(rooms_response)} комнат")
             return rooms_response
 
-    async def get_popular_rooms(
-        self, limit: int = 20, profile_id: UUID | None = None
-    ) -> list[RoomResponse]:
-        """
-        Возвращает список самых популярных комнат по количеству участников и сообщений.
-
-        Args:
-            limit: Максимальное количество возвращаемых комнат (по умолчанию: 20)
-            profile_id: Идентификатор профиля (опционально, для проверки участия)
-
-        Returns:
-            list[RoomResponse]: Список популярных комнат с данными об участии текущего пользователя
-        """
-        app_logger.info("Получение популярных комнат")
-
+    async def get_all_tags(self, profile_id: UUID) -> list[str]:
+        """Возвращает уникальные теги из публичных комнат и приватных комнат пользователя."""
         async with self.uow as uow:
-            rooms = await uow.room.get_popular_rooms(limit=limit)
-
-            rooms_response = []
-            for room in rooms:
-                participants_count, messages_count = (
-                    await uow.room_participant.get_room_counts(room.id)
-                )
-
-                is_joined = False
-                if profile_id:
-                    participant = await uow.room_participant.get_participant(
-                        room.id, profile_id
-                    )
-                    is_joined = participant is not None and not participant.is_banned
-
-                room_dict = {
-                    **room.__dict__,
-                    "participants_count": participants_count,
-                    "messages_count": messages_count,
-                    "is_joined": is_joined,
-                }
-                rooms_response.append(RoomResponse(**room_dict))
-
-            return rooms_response
-
-    async def get_user_rooms(self, profile_id: UUID) -> list[RoomResponse]:
-        """
-        Возвращает список комнат, созданных указанным пользователем.
-
-        Args:
-            profile_id: Идентификатор профиля, для которого запрашиваются комнаты
-
-        Returns:
-            list[RoomResponse]: Список комнат, отсортированных по дате создания (сначала новые)
-        """
-        app_logger.info(f"Получение комнат профиля: {profile_id}")
-
-        async with self.uow as uow:
-            rooms = await uow.room.find_all(creator_id=profile_id)
-            rooms.sort(key=lambda r: r.created_at, reverse=True)
-
-            rooms_response = []
-            for room in rooms:
-                participants_count, messages_count = (
-                    await uow.room_participant.get_room_counts(room.id)
-                )
-
-                participant = await uow.room_participant.get_participant(
-                    room.id, profile_id
-                )
-                is_joined = participant is not None and not participant.is_banned
-
-                room_dict = {
-                    **room.__dict__,
-                    "participants_count": participants_count,
-                    "messages_count": messages_count,
-                    "is_joined": is_joined,
-                }
-                rooms_response.append(RoomResponse(**room_dict))
-
-            app_logger.info(
-                f"Найдено {len(rooms_response)} комнат профиля {profile_id}"
-            )
-            return rooms_response
+            return await uow.room.get_all_tags(profile_id)
 
     async def update_room(
         self, room_id: UUID, room_update: RoomUpdate, profile_id: UUID

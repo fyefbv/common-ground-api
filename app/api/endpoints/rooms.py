@@ -31,20 +31,29 @@ rooms_router = APIRouter(prefix="/rooms", tags=["Комнаты"])
 @rooms_router.get("/", response_model=list[RoomResponse])
 async def get_rooms(
     query: str | None = Query(None, min_length=2, max_length=100),
-    interest_id: UUID | None = Query(None),
+    interest_ids: list[UUID] | None = Query(None, max_length=50),
     tags: list[str] | None = Query(None),
+    my_rooms: bool = Query(False),
+    sort_by: str = Query("created_at", regex="^(created_at|participants)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     room_service: RoomService = Depends(get_room_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> list[RoomResponse]:
     """
-    Выполняет поиск комнат по фильтрам (название, интересы, теги).
+    Выполняет поиск комнат с гибкими фильтрами и сортировкой.
+
+    Позволяет искать публичные комнаты или только комнаты текущего пользователя (включая приватные).
+    Поддерживает сортировку по дате создания или количеству участников.
 
     Args:
         query: Поисковый запрос по названию или описанию
-        interest_id: Идентификатор интереса для фильтрации
+        interest_ids: Список идентификаторов интересов для фильтрации
         tags: Список тегов для фильтрации
+        my_rooms: Если True, возвращает только комнаты текущего пользователя (включая приватные)
+        sort_by: Критерий сортировки (created_at или participants)
+        sort_order: Порядок сортировки (asc или desc)
         limit: Максимальное количество комнат в ответе
         offset: Смещение для пагинации
         room_service: Сервис для управления комнатами (инъекция зависимости)
@@ -55,13 +64,27 @@ async def get_rooms(
     """
     return await room_service.search_rooms(
         query=query,
-        interest_id=interest_id,
+        interest_ids=interest_ids,
         tags=tags,
-        is_private=False,
+        my_rooms=my_rooms,
+        sort_by=sort_by,
+        sort_order=sort_order,
         limit=limit,
         offset=offset,
         profile_id=user_profile.profile_id,
     )
+
+
+@rooms_router.get("/tags", response_model=list[str])
+async def get_all_tags(
+    room_service: RoomService = Depends(get_room_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> list[str]:
+    """
+    Возвращает список всех уникальных тегов, доступных текущему пользователю
+    (из публичных комнат и его приватных комнат).
+    """
+    return await room_service.get_all_tags(user_profile.profile_id)
 
 
 @rooms_router.get("/popular", response_model=list[RoomResponse])
@@ -70,18 +93,12 @@ async def get_popular_rooms(
     room_service: RoomService = Depends(get_room_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> list[RoomResponse]:
-    """
-    Возвращает список самых популярных комнат по количеству участников.
-
-    Args:
-        limit: Максимальное количество комнат в ответе
-        room_service: Сервис для управления комнатами (инъекция зависимости)
-        user_profile: Текущий профиль пользователя (инъекция зависимости)
-
-    Returns:
-        list[RoomResponse]: Список популярных комнат
-    """
-    return await room_service.get_popular_rooms(limit, user_profile.profile_id)
+    return await room_service.search_rooms(
+        sort_by="participants",
+        sort_order="desc",
+        limit=limit,
+        profile_id=user_profile.profile_id,
+    )
 
 
 @rooms_router.get("/my", response_model=list[RoomResponse])
@@ -89,17 +106,13 @@ async def get_my_rooms(
     room_service: RoomService = Depends(get_room_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> list[RoomResponse]:
-    """
-    Возвращает комнаты, созданные текущим пользователем.
-
-    Args:
-        room_service: Сервис для управления комнатами (инъекция зависимости)
-        user_profile: Текущий профиль пользователя (инъекция зависимости)
-
-    Returns:
-        list[RoomResponse]: Список комнат, отсортированных по дате создания
-    """
-    return await room_service.get_user_rooms(user_profile.profile_id)
+    return await room_service.search_rooms(
+        my_rooms=True,
+        sort_by="created_at",
+        sort_order="desc",
+        limit=100,
+        profile_id=user_profile.profile_id,
+    )
 
 
 @rooms_router.post(
