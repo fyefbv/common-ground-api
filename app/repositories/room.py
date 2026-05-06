@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy import func, or_, select
 
 from app.db.models.room import Room
 from app.db.models.room_participant import RoomParticipant
@@ -13,10 +13,12 @@ class RoomRepository(Repository):
     async def search_rooms(
         self,
         query: str | None = None,
-        interest_id: UUID | None = None,
+        interest_ids: list[UUID] | None = None,
         tags: list[str] | None = None,
         creator_id: UUID | None = None,
         is_private: bool | None = False,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         limit: int = 50,
         offset: int = 0,
     ) -> list[Room]:
@@ -30,8 +32,8 @@ class RoomRepository(Repository):
                 )
             )
 
-        if interest_id:
-            stmt = stmt.where(self.model.primary_interest_id == interest_id)
+        if interest_ids:
+            stmt = stmt.where(self.model.primary_interest_id.in_(interest_ids))
 
         if tags:
             for tag in tags:
@@ -43,30 +45,39 @@ class RoomRepository(Repository):
         if is_private is not None:
             stmt = stmt.where(self.model.is_private == is_private)
 
-        stmt = stmt.order_by(desc(self.model.created_at))
-        stmt = stmt.limit(limit).offset(offset)
-
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def get_popular_rooms(self, limit: int = 20) -> list[Room]:
-        participants_subq = (
-            select(RoomParticipant.room_id, func.count().label("participants_count"))
-            .where(RoomParticipant.is_banned == False)
-            .group_by(RoomParticipant.room_id)
-            .subquery()
-        )
-
-        stmt = (
-            select(self.model)
-            .outerjoin(participants_subq, participants_subq.c.room_id == self.model.id)
-            .where(self.model.is_private == False)
-            .order_by(
-                desc(func.coalesce(participants_subq.c.participants_count, 0)),
-                desc(self.model.created_at),
+        if sort_by == "participants":
+            participants_subq = (
+                select(func.count())
+                .where(
+                    RoomParticipant.room_id == self.model.id,
+                    RoomParticipant.is_banned == False,
+                )
+                .correlate(self.model)
+                .scalar_subquery()
             )
-            .limit(limit)
-        )
+            order_col = participants_subq
+        else:
+            order_col = self.model.created_at
 
+        if sort_order == "asc":
+            stmt = stmt.order_by(order_col.asc())
+        else:
+            stmt = stmt.order_by(order_col.desc())
+
+        stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_all_tags(self, profile_id: UUID) -> list[str]:
+        stmt = (
+            select(func.unnest(self.model.tags).label("tag"))
+            .where(
+                or_(
+                    self.model.is_private == False,
+                    self.model.creator_id == profile_id,
+                )
+            )
+            .distinct()
+        )
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
