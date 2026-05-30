@@ -55,3 +55,4 @@ class RoomResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_joined: bool | None = None
+    is_banned: bool | None = None

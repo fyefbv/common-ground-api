@@ -97,6 +97,10 @@ async def websocket_roulette_chat(
                 sender_profile_id=profile_id,
             )
             await roulette_connection_manager.send_personal_message(
+                partner_connected_event.to_dict(), session_id, partner_profile_id
+            )
+
+            await roulette_connection_manager.send_personal_message(
                 partner_connected_event.to_dict(), session_id, profile_id
             )
 

@@ -1,8 +1,11 @@
+import asyncio
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
 
 from app.core.logger import app_logger
+from app.core.websocket.room_events import RoomEventType, RoomWebSocketMessage
 
 
 class RoomConnectionManager:
@@ -26,14 +29,47 @@ class RoomConnectionManager:
             f"WebSocket подключен: profile_id={profile_id}, room_id={room_id}"
         )
 
-    def disconnect(self, room_id: UUID, profile_id: UUID):
+        online_count = self.get_room_online_count(room_id)
+        event = RoomWebSocketMessage(
+            type=RoomEventType.PROFILE_ONLINE,
+            data={
+                "profile_id": str(profile_id),
+                "online_count": online_count,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            timestamp=datetime.now(timezone.utc),
+            room_id=room_id,
+            sender_profile_id=profile_id,
+        )
+        await self.broadcast(event.to_dict(), room_id, exclude_profile_id=profile_id)
+
+    async def disconnect(self, room_id: UUID, profile_id: UUID):
+        if (
+            room_id in self.active_connections
+            and profile_id in self.active_connections[room_id]
+        ):
+            online_count = self.get_room_online_count(room_id)
+            event = RoomWebSocketMessage(
+                type=RoomEventType.PROFILE_OFFLINE,
+                data={
+                    "profile_id": str(profile_id),
+                    "online_count": online_count - 1,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                timestamp=datetime.now(timezone.utc),
+                room_id=room_id,
+                sender_profile_id=profile_id,
+            )
+            asyncio.create_task(
+                self.broadcast(event.to_dict(), room_id, exclude_profile_id=profile_id)
+            )
+
         if room_id in self.active_connections:
             if profile_id in self.active_connections[room_id]:
                 del self.active_connections[room_id][profile_id]
                 app_logger.info(
                     f"WebSocket отключен: profile_id={profile_id}, room_id={room_id}"
                 )
-
             if not self.active_connections[room_id]:
                 del self.active_connections[room_id]
                 app_logger.info(f"WebSocket: комната {room_id} стала пустой")
@@ -46,14 +82,14 @@ class RoomConnectionManager:
                     f"WebSocket: у профиля {profile_id} больше нет активных комнат"
                 )
 
-    def disconnect_all(self, profile_id: UUID):
+    async def disconnect_all(self, profile_id: UUID):
         if profile_id in self.profile_rooms:
             room_ids = list(self.profile_rooms[profile_id])
             app_logger.info(
                 f"WebSocket: отключаем профиль {profile_id} от комнат: {room_ids}"
             )
             for room_id in room_ids:
-                self.disconnect(room_id, profile_id)
+                await self.disconnect(room_id, profile_id)
 
     async def send_personal_message(
         self, message: dict, room_id: UUID, profile_id: UUID
@@ -89,7 +125,7 @@ class RoomConnectionManager:
                     disconnected_profiles.append(pid)
 
             for pid in disconnected_profiles:
-                self.disconnect(room_id, pid)
+                await self.disconnect(room_id, pid)
 
     def get_room_participants(self, room_id: UUID) -> list[UUID]:
         if room_id in self.active_connections:

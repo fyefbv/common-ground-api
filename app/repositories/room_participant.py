@@ -130,3 +130,11 @@ class RoomParticipantRepository(Repository):
         messages_count = messages_result.scalar() or 0
 
         return participants_count, messages_count
+
+    async def count_rooms_for_profile(self, profile_id: UUID) -> int:
+        stmt = select(func.count()).where(
+            self.model.profile_id == profile_id,
+            self.model.is_banned == False,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0

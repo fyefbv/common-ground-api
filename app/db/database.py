@@ -8,7 +8,12 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-engine = create_async_engine(url=settings.ASYNC_DATABASE_URL)
+engine = create_async_engine(
+    url=settings.ASYNC_DATABASE_URL,
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=60,
+)
 
 async_session_maker = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

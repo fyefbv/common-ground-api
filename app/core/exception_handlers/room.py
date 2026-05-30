@@ -11,6 +11,7 @@ from app.core.exceptions.room import (
     ParticipantMutedError,
     RoomAlreadyExistsError,
     RoomFullError,
+    RoomMaxParticipantsTooLowError,
     RoomMessageNotFoundError,
     RoomNotFoundError,
     RoomParticipantNotFoundError,
@@ -217,6 +218,25 @@ async def participant_already_has_role_handler(
             "success": False,
             "error": {
                 "code": "participant_already_has_role",
+                "message": exc.detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+    )
+
+
+async def room_max_participants_too_low_handler(
+    request: Request, exc: RoomMaxParticipantsTooLowError
+):
+    app_logger.warning(
+        f"Попытка установить лимит участников ниже текущего количества: {exc.detail}"
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "room_max_participants_too_low",
                 "message": exc.detail,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },

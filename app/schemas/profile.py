@@ -41,6 +41,10 @@ class ProfileUpdate(ProfileBase):
         return v
 
 
+class ProfileBatch(BaseModel):
+    profile_ids: list[UUID]
+
+
 class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,3 +67,9 @@ class ProfileAvatarResponse(BaseModel):
 class UserProfile(BaseModel):
     user_id: UUID
     profile_id: UUID
+
+
+class ProfileStatisticsResponse(BaseModel):
+    total_sessions: int
+    reputation_score: float
+    total_rooms: int

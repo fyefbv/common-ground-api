@@ -1,14 +1,33 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 
 from app.api.routers import api_router, ws_router
 from app.core.exception_handlers import setup_exception_handlers
 from app.core.logger import app_logger
+from app.utils.chat_roulette_cleanup import run_session_cleanup
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    cleanup_task = asyncio.create_task(run_session_cleanup())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+
 
 app = FastAPI(
     title="Common Ground API",
     description="API для чат-рулетки, управления комнатами и профилями пользователей. Поддерживает аутентификацию, работу с интересами, загрузку аватарок и WebSocket-уведомления.",
     version="1.0.0",
+    lifespan=lifespan,
     openapi_tags=[
         {
             "name": "Аутентификация",

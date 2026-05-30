@@ -85,3 +85,12 @@ class ParticipantAlreadyHasRoleError(HTTPException):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Participant already has role {role}",
         )
+
+
+class RoomMaxParticipantsTooLowError(HTTPException):
+    def __init__(self, current_count: int, requested_max: int):
+        detail = (
+            f"Cannot reduce max participants to {requested_max} "
+            f"because there are {current_count} active participants in the room."
+        )
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

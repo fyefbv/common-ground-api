@@ -22,9 +22,42 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=sender_profile_id,
         )
-
         await room_connection_manager.broadcast(event.to_dict(), room_id)
         app_logger.info(f"Новое сообщение разослано в комнату {room_id}")
+
+    async def broadcast_message_updated(
+        self, room_id: UUID, message_data: dict[str, Any], updater_profile_id: UUID
+    ):
+        event = RoomWebSocketMessage(
+            type=RoomEventType.MESSAGE_UPDATED,
+            data={
+                "message": message_data,
+                "updater_profile_id": str(updater_profile_id),
+            },
+            timestamp=datetime.now(timezone.utc),
+            room_id=room_id,
+            sender_profile_id=updater_profile_id,
+        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
+        app_logger.info(f"Обновление сообщения разослано в комнату {room_id}")
+
+    async def broadcast_message_deleted(
+        self, room_id: UUID, message_id: UUID, deleter_profile_id: UUID
+    ):
+        event = RoomWebSocketMessage(
+            type=RoomEventType.MESSAGE_DELETED,
+            data={
+                "message_id": str(message_id),
+                "deleter_profile_id": str(deleter_profile_id),
+            },
+            timestamp=datetime.now(timezone.utc),
+            room_id=room_id,
+            sender_profile_id=deleter_profile_id,
+        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
+        app_logger.info(
+            f"Удаление сообщения {message_id} разослано в комнату {room_id}"
+        )
 
     async def broadcast_room_update(
         self,
@@ -44,16 +77,12 @@ class WebSocketRoomService:
             sender_profile_id=updater_profile_id,
         )
 
-        await room_connection_manager.broadcast(
-            event.to_dict(), room_id, exclude_profile_id=updater_profile_id
-        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
         app_logger.info(f"Обновление комнаты {room_id} разослано через WebSocket")
 
     async def broadcast_room_deleted(
         self, room_id: UUID, deleter_profile_id: UUID = None
     ):
-        participants = room_connection_manager.get_room_participants(room_id)
-
         event_data = {"room_id": str(room_id)}
         if deleter_profile_id:
             event_data["deleter_profile_id"] = str(deleter_profile_id)
@@ -66,13 +95,11 @@ class WebSocketRoomService:
             sender_profile_id=deleter_profile_id,
         )
 
-        for profile_id in participants:
-            await room_connection_manager.send_personal_message(
-                event.to_dict(), room_id, profile_id
-            )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
 
+        participants = room_connection_manager.get_room_participants(room_id)
         for profile_id in participants:
-            room_connection_manager.disconnect(room_id, profile_id)
+            await room_connection_manager.disconnect(room_id, profile_id)
 
         app_logger.info(f"Удаление комнаты {room_id} разослано через WebSocket")
 
@@ -89,9 +116,7 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=muter_profile_id,
         )
-
         await room_connection_manager.broadcast(event.to_dict(), room_id)
-
         app_logger.info(f"Участник {muted_profile_id} замьючен в комнате {room_id}")
 
     async def broadcast_participant_unmuted(
@@ -107,9 +132,7 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=unmuter_profile_id,
         )
-
         await room_connection_manager.broadcast(event.to_dict(), room_id)
-
         app_logger.info(f"Участник {unmuted_profile_id} размьючен в комнате {room_id}")
 
     async def broadcast_participant_banned(
@@ -125,28 +148,10 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=banner_profile_id,
         )
-
-        await room_connection_manager.broadcast(
-            event.to_dict(), room_id, exclude_profile_id=banned_profile_id
-        )
-
-        personal_event = RoomWebSocketMessage(
-            type=RoomEventType.PARTICIPANT_BANNED,
-            data={
-                "banned_profile_id": str(banned_profile_id),
-                "room_id": str(room_id),
-                "reason": "You have been banned from this room",
-            },
-            timestamp=datetime.now(timezone.utc),
-            room_id=room_id,
-            sender_profile_id=banner_profile_id,
-        )
-        await room_connection_manager.send_personal_message(
-            personal_event.to_dict(), room_id, banned_profile_id
-        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
 
         if room_connection_manager.is_profile_connected(room_id, banned_profile_id):
-            room_connection_manager.disconnect(room_id, banned_profile_id)
+            await room_connection_manager.disconnect(room_id, banned_profile_id)
 
         app_logger.info(f"Участник {banned_profile_id} забанен в комнате {room_id}")
 
@@ -163,9 +168,7 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=unbanner_profile_id,
         )
-
         await room_connection_manager.broadcast(event.to_dict(), room_id)
-
         app_logger.info(f"Участник {unbanned_profile_id} разбанен в комнате {room_id}")
 
     async def broadcast_participant_kicked(
@@ -182,13 +185,10 @@ class WebSocketRoomService:
             room_id=room_id,
             sender_profile_id=kicker_profile_id,
         )
-
-        await room_connection_manager.broadcast(
-            event.to_dict(), room_id, exclude_profile_id=kicker_profile_id
-        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
 
         if room_connection_manager.is_profile_connected(room_id, kicked_profile_id):
-            room_connection_manager.disconnect(room_id, kicked_profile_id)
+            await room_connection_manager.disconnect(room_id, kicked_profile_id)
 
         app_logger.info(f"Участник {kicked_profile_id} кикнут из комнаты {room_id}")
 
@@ -207,9 +207,7 @@ class WebSocketRoomService:
             sender_profile_id=joined_profile_id,
         )
 
-        await room_connection_manager.broadcast(
-            event.to_dict(), room_id, exclude_profile_id=joined_profile_id
-        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
         app_logger.info(
             f"Участник {joined_profile_id} присоединился к комнате {room_id}"
         )
@@ -227,9 +225,11 @@ class WebSocketRoomService:
             sender_profile_id=left_profile_id,
         )
 
-        await room_connection_manager.broadcast(
-            event.to_dict(), room_id, exclude_profile_id=left_profile_id
-        )
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
+
+        if room_connection_manager.is_profile_connected(room_id, left_profile_id):
+            await room_connection_manager.disconnect(room_id, left_profile_id)
+
         app_logger.info(f"Участник {left_profile_id} вышел из комнаты {room_id}")
 
     async def broadcast_role_changed(
@@ -254,11 +254,7 @@ class WebSocketRoomService:
             sender_profile_id=changer_profile_id,
         )
 
-        await room_connection_manager.broadcast(
-            event.to_dict(),
-            room_id,
-        )
-
+        await room_connection_manager.broadcast(event.to_dict(), room_id)
         app_logger.info(
             f"Уведомление об изменении роли: участник {target_profile_id} изменен с {old_role} на {new_role} в комнате {room_id}"
         )

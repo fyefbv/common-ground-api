@@ -27,7 +27,6 @@ from app.schemas.chat_roulette import (
     ChatRouletteSearchRequest,
     ChatRouletteSearchResponse,
     ChatRouletteSessionResponse,
-    ChatRouletteStatisticsResponse,
     SessionExtendResponse,
 )
 from app.services.websocket.chat_roulette import WebSocketChatRouletteService
@@ -53,8 +52,6 @@ class ChatRouletteService:
         self.uow = uow
         self.oss = oss
         self.wcrs = wcrs
-        self._cleanup_task = None
-        self._cleanup_initialized = False
 
     async def start_search(
         self, search_request: ChatRouletteSearchRequest, profile_id: UUID
@@ -79,8 +76,6 @@ class ChatRouletteService:
             AlreadyInSessionError: Если у профиля уже есть активная сессия
             NoMatchingFoundError: Если не найдено совпадений за отведённое время
         """
-        await self._lazy_init_cleanup_task()
-
         app_logger.info(f"Начало поиска для профиля: {profile_id}")
 
         async with self.uow as uow:
@@ -161,7 +156,10 @@ class ChatRouletteService:
                 return ChatRouletteSearchResponse(
                     session=ChatRouletteSessionResponse.model_validate(
                         await self._enrich_session_response(
-                            started_session, partner_profile, common_interests
+                            started_session,
+                            profile_id,
+                            partner_profile,
+                            common_interests,
                         )
                     ),
                     immediate_match=True,
@@ -286,7 +284,7 @@ class ChatRouletteService:
 
             return ChatRouletteSessionResponse.model_validate(
                 await self._enrich_session_response(
-                    session, partner_profile, common_interests
+                    session, profile_id, partner_profile, common_interests
                 )
             )
 
@@ -367,6 +365,49 @@ class ChatRouletteService:
                 )
 
             return message_response
+
+    async def get_session_messages(
+        self, profile_id: UUID, limit: int | None = None, before: datetime | None = None
+    ) -> list[ChatRouletteMessageResponse]:
+        """
+        Возвращает историю сообщений активной сессии текущего профиля.
+
+        Args:
+            profile_id: Идентификатор профиля запрашивающего
+            limit: Максимальное количество сообщений (None – все)
+            before: Дата, до которой брать сообщения (для пагинации)
+
+        Returns:
+            Список сообщений в порядке отправки
+
+        Raises:
+            NoActiveSessionError: Если у профиля нет активной сессии
+        """
+        app_logger.info(
+            f"Получение истории сообщений активной сессии для профиля: {profile_id}"
+        )
+        async with self.uow as uow:
+            session = await uow.chat_roulette_session.find_active_session_by_profile(
+                profile_id
+            )
+            if not session:
+                raise NoActiveSessionError()
+
+            messages = await uow.chat_roulette_message.get_messages_by_session(
+                session.id, limit=limit, before=before
+            )
+            app_logger.info(
+                f"Найдено {len(messages)} сообщений для сессии {session.id}"
+            )
+            return [
+                ChatRouletteMessageResponse(
+                    session_id=session.id,
+                    sender_id=m.sender_profile_id,
+                    content=m.content,
+                    created_at=m.created_at,
+                )
+                for m in messages
+            ]
 
     async def extend_session(self, profile_id: UUID) -> SessionExtendResponse:
         """
@@ -483,6 +524,85 @@ class ChatRouletteService:
 
             return response
 
+    async def reject_extension(self, profile_id: UUID) -> None:
+        """
+        Отказывает в продлении сессии чат-рулетки (вызывается партнёром).
+
+        Сбрасывает флаги одобрения продления у обоих участников,
+        чтобы при необходимости можно было повторить запрос.
+        Отправляет уведомление EXTENSION_REJECTED обоим участникам.
+
+        Args:
+            profile_id: Идентификатор профиля, отказывающегося от продления
+
+        Raises:
+            NoActiveSessionError: Если у профиля нет активной сессии
+        """
+        app_logger.info(f"Отказ в продлении сессии от профиля {profile_id}")
+        async with self.uow as uow:
+            session = await uow.chat_roulette_session.find_active_session_by_profile(
+                profile_id
+            )
+            if not session:
+                raise NoActiveSessionError()
+
+            partner_id = (
+                session.profile2_id
+                if session.profile1_id == profile_id
+                else session.profile1_id
+            )
+
+            await uow.chat_roulette_session.update(
+                session.id,
+                {
+                    "extension_approved_by_profile1": False,
+                    "extension_approved_by_profile2": False,
+                },
+            )
+            await uow.commit()
+
+        await self.wcrs.broadcast_extension_rejected(session.id, profile_id, partner_id)
+
+    async def cancel_extension_request(self, profile_id: UUID) -> None:
+        """
+        Отменяет собственный запрос на продление сессии (вызывается инициатором)
+        до того, как партнёр ответил на запрос.
+
+        Сбрасывает флаг одобрения только инициатора.
+        Отправляет уведомление EXTENSION_CANCELLED обоим участникам.
+
+        Args:
+            profile_id: Идентификатор профиля, отменяющего запрос
+
+        Raises:
+            NoActiveSessionError: Если у профиля нет активной сессии
+        """
+        app_logger.info(f"Отмена запроса на продление от профиля {profile_id}")
+        async with self.uow as uow:
+            session = await uow.chat_roulette_session.find_active_session_by_profile(
+                profile_id
+            )
+            if not session:
+                raise NoActiveSessionError()
+
+            is_profile1 = session.profile1_id == profile_id
+            partner_id = session.profile2_id if is_profile1 else session.profile1_id
+
+            update_data = {
+                "extension_approved_by_profile1": (
+                    False if is_profile1 else session.extension_approved_by_profile1
+                ),
+                "extension_approved_by_profile2": (
+                    False if not is_profile1 else session.extension_approved_by_profile2
+                ),
+            }
+            await uow.chat_roulette_session.update(session.id, update_data)
+            await uow.commit()
+
+        await self.wcrs.broadcast_extension_cancelled(
+            session.id, profile_id, partner_id
+        )
+
     async def end_session(self, profile_id: UUID, reason: str) -> bool:
         """
         Завершает активную сессию чат-рулетки с указанием причины.
@@ -516,14 +636,17 @@ class ChatRouletteService:
             if session.status != ChatRouletteSessionStatus.ACTIVE:
                 raise SessionAlreadyEndedError()
 
+            full_reason = f"Left by user: {reason}"
             await uow.chat_roulette_session.update_session_status(
-                session.id, ChatRouletteSessionStatus.LEFT, f"Left by user: {reason}"
+                session.id, ChatRouletteSessionStatus.LEFT, full_reason
             )
 
             await uow.commit()
 
             try:
-                await self.wcrs.broadcast_session_ended(session.id, profile_id, reason)
+                await self.wcrs.broadcast_session_ended(
+                    session.id, profile_id, full_reason
+                )
             except Exception as e:
                 app_logger.error(
                     f"Ошибка при отправке WebSocket уведомления о завершении сессии: {e}"
@@ -592,17 +715,12 @@ class ChatRouletteService:
                 session.id, profile_id, partner_profile_id, rating_request.rating
             )
 
-            partner_profile = await uow.profile.get_by_id(partner_profile_id)
-            if partner_profile:
-                new_reputation = (
-                    partner_profile.reputation_score + (rating_request.rating - 3) * 0.1
-                )
-                new_reputation = max(0.0, min(5.0, new_reputation))
-
-                await uow.profile.update(
-                    partner_profile_id, {"reputation_score": new_reputation}
-                )
-
+            new_reputation = await uow.chat_roulette_session.calculate_reputation(
+                partner_profile_id
+            )
+            await uow.profile.update(
+                partner_profile_id, {"reputation_score": new_reputation}
+            )
             await uow.commit()
 
             return True
@@ -651,10 +769,11 @@ class ChatRouletteService:
             if not partner_profile_id:
                 raise PartnerNotFoundError()
 
+            full_reason = f"Reported: {report_request.reason}"
             await uow.chat_roulette_session.update_session_status(
                 session.id,
                 ChatRouletteSessionStatus.REPORTED,
-                f"Reported: {report_request.reason}",
+                full_reason,
             )
 
             await uow.chat_roulette_report.add_one(
@@ -674,8 +793,8 @@ class ChatRouletteService:
             )
 
             try:
-                await self.wcrs.broadcast_session_reported(
-                    session.id, profile_id, partner_profile_id, report_request.reason
+                await self.wcrs.broadcast_session_ended(
+                    session.id, profile_id, full_reason
                 )
             except Exception as e:
                 app_logger.error(
@@ -684,69 +803,30 @@ class ChatRouletteService:
 
             return True
 
-    async def get_statistics(self, profile_id: UUID) -> ChatRouletteStatisticsResponse:
-        """
-        Возвращает статистику сессий чат-рулетки для указанного профиля.
-
-        Рассчитывает:
-        - Общее количество сессий
-        - Количество завершённых сессий
-        - Средний рейтинг от партнёров
-        - Процент завершённых сессий
-
-        Args:
-            profile_id: Идентификатор профиля, для которого запрашивается статистика
-
-        Returns:
-            ChatRouletteStatisticsResponse: Объект с рассчитанными статистическими показателями
-
-        Raises:
-            ProfileNotFoundError: Если профиль не найден
-        """
-        async with self.uow as uow:
-            profile = await uow.profile.get_by_id(profile_id)
-            if not profile:
-                raise ProfileNotFoundError(profile_id)
-
-            total, completed, avg_rating = (
-                await uow.chat_roulette_session.get_profile_statistics(profile_id)
-            )
-
-            return ChatRouletteStatisticsResponse(
-                total_sessions=total,
-                completed_sessions=completed,
-                average_rating=round(avg_rating, 2),
-                completion_rate=round(completed / total * 100, 2) if total > 0 else 0,
-            )
-
     async def _try_match_profile(
         self, uow, profile_id: UUID, priority_interest_ids: list[UUID]
     ) -> tuple[UUID, UUID | None] | None:
         """
         Пытается найти подходящего партнёра для указанного профиля.
 
-        Сравнивает интересы текущего профиля с интересами профилей,
-        ожидающих в сессиях с статусом WAITING.
-        Рассчитывает совместимость на основе:
-        - Количества общих интересов
-        - Приоритетных интересов (вес x2)
-        - Репутации партнёра
+        Правила совместимости:
+        - Если у текущего профиля есть интересы, он может соединиться только с теми,
+        у кого тоже есть интересы и имеется хотя бы один общий интерес.
+        - Если у текущего профиля нет интересов, он может соединиться только с такими же
+        профилями без интересов (матч без темы).
+        - Репутация не влияет на подбор.
 
-        Args:
-            uow: UnitOfWork для работы с базой данных
-            profile_id: Идентификатор профиля, для которого ищется партнёр
-            priority_interest_ids: Список приоритетных интересов для поиска
+        Приоритетные интересы (если указаны) дают бонус к score (×2 за каждое совпадение),
+        но не могут создать матч при отсутствии общих интересов.
 
-        Returns:
-            tuple[UUID, UUID | None] | None:
-                - Идентификатор найденного профиля
-                - Идентификатор общего интереса (приоритетного, если есть)
-                - None, если подходящий партнёр не найден
+        Возвращает:
+            - Идентификатор найденного профиля и идентификатор общего интереса
+            (приоритетного, если есть, иначе первого общего).
+            - None, если подходящий партнёр не найден.
         """
-        MIN_MATCH_SCORE = 1
-
         current_profile_interests = await uow.profile.get_profile_interests(profile_id)
         current_interest_ids = {interest.id for interest in current_profile_interests}
+        current_has_interests = len(current_interest_ids) > 0
 
         waiting_sessions = await uow.chat_roulette_session.find_matching_sessions(
             profile_id
@@ -764,43 +844,53 @@ class ChatRouletteService:
             partner_interest_ids = {
                 interest.id for interest in partner_profile_interests
             }
+            partner_has_interests = len(partner_interest_ids) > 0
 
-            common_interests = current_interest_ids.intersection(partner_interest_ids)
+            if current_has_interests:
+                if not partner_has_interests:
+                    continue
+                common_interests = current_interest_ids.intersection(
+                    partner_interest_ids
+                )
+                if not common_interests:
+                    continue
+            else:
+                if partner_has_interests:
+                    continue
+                common_interests = set()
 
             score = len(common_interests)
-
             if priority_interest_ids:
                 priority_matches = len(
                     set(priority_interest_ids).intersection(partner_interest_ids)
                 )
                 score += priority_matches * 2
 
-            partner_profile = await uow.profile.get_by_id(partner_profile_id)
-            if partner_profile:
-                score += int(partner_profile.reputation_score)
+            if not current_has_interests:
+                score = 1
 
-            if score > best_score and score >= MIN_MATCH_SCORE:
+            if score > best_score:
                 best_score = score
 
-                priority_common_interests = set(priority_interest_ids).intersection(
-                    common_interests
-                )
-
-                mutual_priority_interests = set(priority_interest_ids).intersection(
-                    partner_priority_ids or []
-                )
-                mutual_priority_common = mutual_priority_interests.intersection(
-                    common_interests
-                )
-
-                if mutual_priority_common:
-                    best_common_interest = next(iter(mutual_priority_common))
-                elif priority_common_interests:
-                    best_common_interest = next(iter(priority_common_interests))
-                else:
-                    best_common_interest = (
-                        next(iter(common_interests), None) if common_interests else None
+                if common_interests:
+                    mutual_priority = set(priority_interest_ids).intersection(
+                        partner_priority_ids or []
                     )
+                    mutual_priority_common = mutual_priority.intersection(
+                        common_interests
+                    )
+                    if mutual_priority_common:
+                        best_common_interest = next(iter(mutual_priority_common))
+                    else:
+                        priority_common = set(priority_interest_ids).intersection(
+                            common_interests
+                        )
+                        if priority_common:
+                            best_common_interest = next(iter(priority_common))
+                        else:
+                            best_common_interest = next(iter(common_interests))
+                else:
+                    best_common_interest = None
 
                 best_match = (partner_profile_id, best_common_interest)
 
@@ -854,7 +944,10 @@ class ChatRouletteService:
                         )
                         return ChatRouletteSessionResponse.model_validate(
                             await self._enrich_session_response(
-                                active_session, partner_profile, common_interests
+                                active_session,
+                                profile_id,
+                                partner_profile,
+                                common_interests,
                             )
                         )
 
@@ -899,7 +992,10 @@ class ChatRouletteService:
 
                     return ChatRouletteSessionResponse.model_validate(
                         await self._enrich_session_response(
-                            started_session, partner_profile, common_interests
+                            started_session,
+                            profile_id,
+                            partner_profile,
+                            common_interests,
                         )
                     )
 
@@ -907,96 +1003,6 @@ class ChatRouletteService:
                     await asyncio.sleep(2)
 
         return None
-
-    async def _lazy_init_cleanup_task(self):
-        """
-        Инициализирует фоновую задачу очистки просроченных сессий (если ещё не инициализирована).
-
-        Запускает задачу `_background_session_cleanup` для автоматического завершения
-        просроченных сессий и уведомления участников через WebSocket.
-        """
-        if not self._cleanup_initialized:
-            self._start_cleanup_task()
-            self._cleanup_initialized = True
-
-    def _start_cleanup_task(self):
-        """
-        Запускает фоновую задачу очистки просроченных сессий.
-
-        Создаёт новую задачу `_background_session_cleanup`, если текущая задача
-        не существует или завершена.
-        Логирует запуск задачи.
-        """
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._background_session_cleanup())
-            app_logger.info("Фоновая задача очистки сессий запущена")
-
-    async def _background_session_cleanup(self):
-        """
-        Фоновая задача для автоматической очистки просроченных сессий.
-
-        Регулярно проверяет сессии на истечение срока действия.
-        Завершает просроченные сессии, обновляет их статус на COMPLETED
-        и уведомляет участников через WebSocket.
-        Также отслеживает сессии, которые скоро истекут, для оптимизации интервалов проверки.
-        """
-        try:
-            while True:
-                try:
-                    async with UnitOfWork() as uow:
-                        expired_sessions = (
-                            await uow.chat_roulette_session.get_expired_sessions()
-                        )
-
-                        if expired_sessions:
-                            for session in expired_sessions:
-                                await uow.chat_roulette_session.update_session_status(
-                                    session.id,
-                                    ChatRouletteSessionStatus.COMPLETED,
-                                    "Session expired automatically",
-                                )
-
-                            await uow.commit()
-                            app_logger.info(
-                                f"Автоматически завершено {len(expired_sessions)} просроченных сессий"
-                            )
-
-                            for session in expired_sessions:
-                                try:
-                                    await self.wcrs.broadcast_session_ended(
-                                        session.id,
-                                        session.profile1_id,
-                                        "Session expired automatically",
-                                    )
-                                except Exception as e:
-                                    app_logger.error(
-                                        f"Ошибка при отправке WebSocket уведомления о завершении сессии {session.id}: {e}"
-                                    )
-
-                        expiring_soon_sessions = (
-                            await uow.chat_roulette_session.get_expiring_sessions(
-                                minutes_before=2
-                            )
-                        )
-
-                        if expiring_soon_sessions:
-                            next_expiry = min(
-                                session.expires_at for session in expiring_soon_sessions
-                            )
-                            time_until_next = (
-                                next_expiry - datetime.now(timezone.utc)
-                            ).total_seconds()
-                            await asyncio.sleep(max(0, min(time_until_next, 120)))
-                        else:
-                            await asyncio.sleep(60)
-
-                except Exception as e:
-                    app_logger.error(f"Ошибка очистки сессий в фоне: {e}")
-                    await asyncio.sleep(60)
-
-        except asyncio.CancelledError:
-            app_logger.info("Задача очистки сессий в фоне отменена")
-            raise
 
     async def _get_common_interests(
         self, profile1_id: UUID, profile2_id: UUID
@@ -1021,22 +1027,8 @@ class ChatRouletteService:
             return list(profile1_interest_ids.intersection(profile2_interest_ids))
 
     async def _enrich_session_response(
-        self, session, partner_profile=None, common_interests=None
+        self, session, profile_id: UUID, partner_profile=None, common_interests=None
     ) -> dict:
-        """
-        Обогащает информацию о сессии дополнительными данными.
-
-        Добавляет в ответ данные о партнёре (профиль, аватар, общие интересы)
-        и рассчитывает оставшееся время сессии, если она активна.
-
-        Args:
-            session: Объект сессии чат-рулетки
-            partner_profile: Объект профиля партнёра (опционально)
-            common_interests: Список общих интересов (опционально)
-
-        Returns:
-            dict: Обогащённый словарь с данными о сессии, партнёре и общих интересах
-        """
         response = {
             "id": session.id,
             "profile1_id": session.profile1_id,
@@ -1056,6 +1048,17 @@ class ChatRouletteService:
             "extension_approved_by_profile1": session.extension_approved_by_profile1,
             "extension_approved_by_profile2": session.extension_approved_by_profile2,
         }
+
+        partner_id = None
+        if session.profile1_id == profile_id:
+            partner_id = session.profile2_id
+        elif session.profile2_id == profile_id:
+            partner_id = session.profile1_id
+
+        partner_online = False
+        if partner_id:
+            partner_online = self.wcrs.is_profile_connected(session.id, partner_id)
+        response["partner_online"] = partner_online
 
         if partner_profile:
             avatar_url = await self.oss.get_avatar_url(partner_profile.id)

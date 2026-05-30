@@ -95,5 +95,11 @@ class ChatRouletteConnectionManager:
             return list(self.active_connections[session_id].keys())
         return []
 
+    def is_profile_connected(self, session_id: UUID, profile_id: UUID) -> bool:
+        return (
+            session_id in self.active_connections
+            and profile_id in self.active_connections[session_id]
+        )
+
 
 roulette_connection_manager = ChatRouletteConnectionManager()
