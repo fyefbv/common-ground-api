@@ -18,7 +18,7 @@ class RoomMessageResponse(BaseModel):
 
     id: UUID
     room_id: UUID
-    sender_id: UUID
+    sender_id: UUID | None
     content: str
     parent_message_id: UUID | None = None
     created_at: datetime

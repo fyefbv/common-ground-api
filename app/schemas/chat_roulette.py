@@ -27,7 +27,7 @@ class ChatRouletteSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    profile1_id: UUID
+    profile1_id: UUID | None
     profile2_id: UUID | None
     matched_interest_id: UUID | None
     status: str
@@ -58,7 +58,7 @@ class ChatRouletteMessageCreate(BaseModel):
 
 class ChatRouletteMessageResponse(BaseModel):
     session_id: UUID
-    sender_id: UUID
+    sender_id: UUID | None
     content: str
     created_at: datetime
 

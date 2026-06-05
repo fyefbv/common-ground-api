@@ -39,10 +39,10 @@ class RoomMessage(Base):
         nullable=False,
         index=True,
     )
-    sender_id: Mapped[uuid.UUID] = mapped_column(
+    sender_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("profiles.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)

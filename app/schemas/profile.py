@@ -11,7 +11,7 @@ class ProfileBase(BaseModel):
 
 class ProfileCreate(ProfileBase):
     user_id: UUID | None = None
-    username: str = Field(..., min_length=3, max_length=40)
+    username: str = Field(..., min_length=3, max_length=20)
 
     @field_validator("username")
     @classmethod
@@ -26,7 +26,7 @@ class ProfileCreate(ProfileBase):
 
 
 class ProfileUpdate(ProfileBase):
-    username: str | None = Field(None, min_length=3, max_length=40)
+    username: str | None = Field(None, min_length=3, max_length=20)
 
     @field_validator("username")
     @classmethod

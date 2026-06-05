@@ -65,7 +65,7 @@ def upgrade() -> None:
         "room_messages",
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False, primary_key=True, default=uuid.uuid4),
         sa.Column("room_id", sa.UUID(as_uuid=True), nullable=False),
-        sa.Column("sender_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("sender_id", sa.UUID(as_uuid=True), nullable=True),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("parent_message_id", sa.UUID(as_uuid=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["sender_id"],
             ["profiles.id"],
-            ondelete="CASCADE",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id"),
     )

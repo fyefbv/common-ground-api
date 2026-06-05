@@ -36,8 +36,7 @@ class RoomRepository(Repository):
             stmt = stmt.where(self.model.primary_interest_id.in_(interest_ids))
 
         if tags:
-            for tag in tags:
-                stmt = stmt.where(self.model.tags.contains([tag]))
+            stmt = stmt.where(self.model.tags.op("&&")(tags))
 
         if participant_id is not None:
             participant_room_subq = (
