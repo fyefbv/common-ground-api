@@ -14,7 +14,7 @@ class RoomMessageRepository(Repository):
         self,
         room_id: UUID,
         before: datetime | None = None,
-        limit: int = 50,
+        limit: int | None = None,
         include_deleted: bool = False,
     ) -> list[RoomMessage]:
         stmt = select(self.model).where(self.model.room_id == room_id)
@@ -25,7 +25,10 @@ class RoomMessageRepository(Repository):
         if before:
             stmt = stmt.where(self.model.created_at < before)
 
-        stmt = stmt.order_by(desc(self.model.created_at)).limit(limit)
+        stmt = stmt.order_by(desc(self.model.created_at))
+
+        if limit is not None:
+            stmt = stmt.limit(limit)
 
         result = await self.session.execute(stmt)
         messages = result.scalars().all()

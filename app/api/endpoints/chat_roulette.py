@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
@@ -13,7 +15,6 @@ from app.schemas.chat_roulette import (
     ChatRouletteSearchRequest,
     ChatRouletteSearchResponse,
     ChatRouletteSessionResponse,
-    ChatRouletteStatisticsResponse,
     SessionEndRequest,
     SessionExtendResponse,
 )
@@ -113,6 +114,34 @@ async def extend_session(
     return await chat_roulette_service.extend_session(user_profile.profile_id)
 
 
+@chat_roulette_router.post("/session/extension/reject")
+async def reject_extension(
+    chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    """
+    Отказывает в продлении текущей сессии чат-рулетки.
+    Вызывается партнёром, которому поступил запрос на продление.
+
+    После отказа флаги сбрасываются, и при необходимости можно запросить продление снова.
+    """
+    await chat_roulette_service.reject_extension(user_profile.profile_id)
+    return {"detail": "Extension request rejected"}
+
+
+@chat_roulette_router.post("/session/extension/cancel")
+async def cancel_extension(
+    chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> JSONResponse:
+    """
+    Отменяет собственный запрос на продление сессии до ответа партнёра.
+    Вызывается инициатором запроса.
+    """
+    await chat_roulette_service.cancel_extension_request(user_profile.profile_id)
+    return {"detail": "Extension request cancelled"}
+
+
 @chat_roulette_router.post("/session/end")
 async def end_session(
     request: SessionEndRequest,
@@ -188,24 +217,6 @@ async def report_partner(
     return {"detail": "Failed to submit report"}
 
 
-@chat_roulette_router.get("/statistics", response_model=ChatRouletteStatisticsResponse)
-async def get_statistics(
-    chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
-    user_profile: UserProfile = Depends(get_current_profile),
-) -> ChatRouletteStatisticsResponse:
-    """
-    Возвращает статистику чат-рулетки для текущего профиля.
-
-    Args:
-        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
-        user_profile: Текущий профиль пользователя (инъекция зависимости)
-
-    Returns:
-        ChatRouletteStatisticsResponse: Статистика сессий, оценок и жалоб
-    """
-    return await chat_roulette_service.get_statistics(user_profile.profile_id)
-
-
 @chat_roulette_router.post("/messages", response_model=ChatRouletteMessageResponse)
 async def send_message(
     message_create: ChatRouletteMessageCreate,
@@ -225,4 +236,32 @@ async def send_message(
     """
     return await chat_roulette_service.send_message(
         user_profile.profile_id, message_create.content
+    )
+
+
+@chat_roulette_router.get(
+    "/session/messages", response_model=list[ChatRouletteMessageResponse]
+)
+async def get_session_messages(
+    before: datetime | None = Query(None),
+    limit: int | None = Query(None, ge=1, le=100),
+    chat_roulette_service: ChatRouletteService = Depends(get_chat_roulette_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> list[ChatRouletteMessageResponse]:
+    """
+    Возвращает историю сообщений текущей активной сессии чат-рулетки.
+
+    Args:
+        before: Дата и время, до которых нужно вернуть сообщения (опционально, для пагинации)
+        limit: Максимальное количество сообщений (опционально, от 1 до 100)
+        chat_roulette_service: Сервис чат-рулетки (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        list[ChatRouletteMessageResponse]: Список сообщений с информацией об отправителе и времени отправки
+    """
+    return await chat_roulette_service.get_session_messages(
+        profile_id=user_profile.profile_id,
+        limit=limit,
+        before=before,
     )

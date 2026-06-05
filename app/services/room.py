@@ -9,6 +9,7 @@ from app.core.exceptions.room import (
     ParticipantMutedError,
     RoomAlreadyExistsError,
     RoomFullError,
+    RoomMaxParticipantsTooLowError,
     RoomMessageNotFoundError,
     RoomNotFoundError,
     RoomParticipantNotFoundError,
@@ -89,6 +90,7 @@ class RoomService:
                 "participants_count": participants_count,
                 "messages_count": messages_count,
                 "is_joined": True,
+                "is_banned": False,
             }
             return RoomResponse(**room_dict)
 
@@ -119,18 +121,22 @@ class RoomService:
                 await uow.room_participant.get_room_counts(room_id)
             )
 
+            is_banned = False
             is_joined = False
             if profile_id:
                 participant = await uow.room_participant.get_participant(
                     room_id, profile_id
                 )
-                is_joined = participant is not None and not participant.is_banned
+                if participant:
+                    is_banned = participant.is_banned
+                    is_joined = not participant.is_banned
 
             room_dict = {
                 **room.__dict__,
                 "participants_count": participants_count,
                 "messages_count": messages_count,
                 "is_joined": is_joined,
+                "is_banned": is_banned,
             }
 
             return RoomResponse(**room_dict)
@@ -143,7 +149,7 @@ class RoomService:
         my_rooms: bool = False,
         sort_by: str = "created_at",
         sort_order: str = "desc",
-        limit: int = 50,
+        limit: int | None = None,
         offset: int = 0,
         profile_id: UUID | None = None,
     ) -> list[RoomResponse]:
@@ -172,15 +178,12 @@ class RoomService:
         )
 
         async with self.uow as uow:
-            creator_id = profile_id if my_rooms else None
-            is_private_filter = None if my_rooms else False
-
             rooms = await uow.room.search_rooms(
                 query=query,
                 interest_ids=interest_ids,
                 tags=tags,
-                creator_id=creator_id,
-                is_private=is_private_filter,
+                participant_id=profile_id,
+                only_participant_rooms=my_rooms,
                 sort_by=sort_by,
                 sort_order=sort_order,
                 limit=limit,
@@ -193,18 +196,22 @@ class RoomService:
                     await uow.room_participant.get_room_counts(room.id)
                 )
 
+                is_banned = False
                 is_joined = False
                 if profile_id:
                     participant = await uow.room_participant.get_participant(
                         room.id, profile_id
                     )
-                    is_joined = participant is not None and not participant.is_banned
+                    if participant:
+                        is_banned = participant.is_banned
+                        is_joined = not participant.is_banned
 
                 room_dict = {
                     **room.__dict__,
                     "participants_count": participants_count,
                     "messages_count": messages_count,
                     "is_joined": is_joined,
+                    "is_banned": is_banned,
                 }
                 rooms_response.append(RoomResponse(**room_dict))
 
@@ -234,6 +241,7 @@ class RoomService:
             RoomNotFoundError: Если комната не найдена
             RoomPermissionError: Если пользователь не является создателем комнаты
             RoomAlreadyExistsError: Если новое название комнаты уже занято
+            RoomMaxParticipantsTooLowError: При попытке установить лимит участников ниже текущего количества
         """
         app_logger.info(f"Обновление комнаты: {room_id}")
 
@@ -249,6 +257,17 @@ class RoomService:
                 existing_room = await uow.room.find_one(name=room_update.name)
                 if existing_room:
                     raise RoomAlreadyExistsError(room_update.name)
+
+            current_participants, _ = await uow.room_participant.get_room_counts(
+                room_id
+            )
+
+            if room_update.max_participants is not None:
+                if room_update.max_participants < current_participants:
+                    raise RoomMaxParticipantsTooLowError(
+                        current_count=current_participants,
+                        requested_max=room_update.max_participants,
+                    )
 
             update_data = room_update.model_dump(exclude_unset=True)
             updated_room = await uow.room.update(room_id, update_data)
@@ -277,6 +296,7 @@ class RoomService:
                 created_at=updated_room.created_at,
                 updated_at=updated_room.updated_at,
                 is_joined=True,
+                is_banned=False,
             )
 
             try:
@@ -388,6 +408,7 @@ class RoomService:
                 "participants_count": participants_count,
                 "messages_count": messages_count,
                 "is_joined": True,
+                "is_banned": False,
             }
             return RoomResponse(**room_dict)
 
@@ -412,6 +433,9 @@ class RoomService:
             )
             if not participant:
                 raise NotRoomMemberError()
+
+            if participant.is_banned:
+                raise ParticipantBannedError()
 
             room = await uow.room.get_by_id(room_id)
             if not room:
@@ -440,10 +464,13 @@ class RoomService:
         """
         Возвращает список участников комнаты с информацией об их статусе.
 
+        При include_banned=True возвращаются все участники, включая забаненных,
+        для любой роли запрашивающего.
+
         Args:
             room_id: Идентификатор комнаты
             profile_id: Идентификатор профиля, запрашивающего информацию
-            include_banned: Включать ли забаненных участников (по умолчанию: False)
+            include_banned: Включать ли забаненных участников (по умолчанию False)
 
         Returns:
             list[RoomParticipantResponse]: Список участников с информацией об их ролях и статусе
@@ -456,27 +483,25 @@ class RoomService:
         app_logger.info(f"Получение участников комнаты: {room_id}")
 
         async with self.uow as uow:
-            participant = await uow.room_participant.get_participant(
-                room_id, profile_id
-            )
-            if not participant:
+            requester = await uow.room_participant.get_participant(room_id, profile_id)
+            if not requester:
                 raise NotRoomMemberError()
-
-            if participant.is_banned:
+            if requester.is_banned:
                 raise ParticipantBannedError()
 
             participants = await uow.room_participant.get_room_participants(
-                room_id=room_id, include_banned=include_banned
+                room_id=room_id, include_banned=True
             )
+
+            if not include_banned:
+                participants = [p for p in participants if not p.is_banned]
 
             participants_response = []
             for p in participants:
                 participant_dict = p.__dict__.copy()
-
                 participant_dict["is_online"] = self.wrs.is_profile_online(
                     room_id, p.profile_id
                 )
-
                 participant_response = RoomParticipantResponse.model_validate(
                     participant_dict
                 )
@@ -621,7 +646,7 @@ class RoomService:
         room_id: UUID,
         profile_id: UUID,
         before: datetime | None = None,
-        limit: int = 50,
+        limit: int | None = None,
     ) -> RoomMessageListResponse:
         """
         Возвращает список сообщений комнаты с поддержкой пагинации.
@@ -718,6 +743,19 @@ class RoomService:
             await uow.commit()
 
             app_logger.info(f"Сообщение {message_id} обновлено")
+
+            try:
+                message_response = RoomMessageResponse.model_validate(updated_message)
+                await self.wrs.broadcast_message_updated(
+                    room_id=message.room_id,
+                    message_data=message_response.model_dump(),
+                    updater_profile_id=profile_id,
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об обновлении сообщения: {e}"
+                )
+
             return RoomMessageResponse.model_validate(updated_message)
 
     async def delete_message(self, message_id: UUID, profile_id: UUID) -> None:
@@ -762,6 +800,17 @@ class RoomService:
             await uow.commit()
 
             app_logger.info(f"Сообщение {message_id} удалено")
+
+            try:
+                await self.wrs.broadcast_message_deleted(
+                    room_id=message.room_id,
+                    message_id=message_id,
+                    deleter_profile_id=profile_id,
+                )
+            except Exception as e:
+                app_logger.error(
+                    f"Ошибка при отправке WebSocket уведомления об удалении сообщения: {e}"
+                )
 
     async def mute_participant(
         self, room_id: UUID, target_profile_id: UUID, profile_id: UUID
@@ -876,6 +925,9 @@ class RoomService:
             if not target:
                 raise RoomParticipantNotFoundError(target_profile_id)
 
+            if target.role == RoomParticipantRole.MODERATOR and not is_creator:
+                raise RoomPermissionError("Moderators cannot unmute other moderators")
+
             await uow.room_participant.unmute_participant(room_id, target_profile_id)
             await uow.commit()
 
@@ -976,6 +1028,7 @@ class RoomService:
             ParticipantBannedError: Если запрашивающий забанен
             RoomPermissionError: Если у запрашивающего недостаточно прав
             RoomParticipantNotFoundError: Если целевой участник не найден
+            RoomFullError: Если комната уже заполнена до максимального количества участников
         """
         app_logger.info(f"Разбан участника {target_profile_id} в комнате {room_id}")
 
@@ -1003,6 +1056,13 @@ class RoomService:
             if not target:
                 raise RoomParticipantNotFoundError(target_profile_id)
 
+            if target.role == RoomParticipantRole.MODERATOR and not is_creator:
+                raise RoomPermissionError("Moderators cannot unban other moderators")
+
+            participants_count, _ = await uow.room_participant.get_room_counts(room_id)
+            if participants_count >= room.max_participants:
+                raise RoomFullError()
+
             await uow.room_participant.unban_participant(room_id, target_profile_id)
             await uow.commit()
 
@@ -1023,7 +1083,9 @@ class RoomService:
         self, room_id: UUID, profile_id: UUID
     ) -> list[RoomParticipantResponse]:
         """
-        Возвращает список забаненных участников в комнате.
+        Возвращает список всех забаненных участников в комнате.
+
+        Доступен любому участнику комнаты (кроме забаненных).
 
         Args:
             room_id: Идентификатор комнаты
@@ -1036,7 +1098,6 @@ class RoomService:
             NotRoomMemberError: Если пользователь не является участником комнаты
             ParticipantBannedError: Если пользователь забанен
             RoomNotFoundError: Если комната не найдена
-            RoomPermissionError: Если у пользователя недостаточно прав
         """
         app_logger.info(f"Получение забаненных участников комнаты: {room_id}")
 
@@ -1046,7 +1107,6 @@ class RoomService:
             )
             if not participant:
                 raise NotRoomMemberError()
-
             if participant.is_banned:
                 raise ParticipantBannedError()
 
@@ -1054,28 +1114,17 @@ class RoomService:
             if not room:
                 raise RoomNotFoundError(room_id)
 
-            if (
-                room.creator_id != profile_id
-                and participant.role != RoomParticipantRole.MODERATOR
-            ):
-                raise RoomPermissionError(
-                    "Only creators and moderators can view banned participants"
-                )
-
             participants = await uow.room_participant.get_room_participants(
                 room_id=room_id, include_banned=True
             )
-
             banned_participants = [p for p in participants if p.is_banned]
 
             participants_response = []
             for p in banned_participants:
                 participant_dict = p.__dict__.copy()
-
                 participant_dict["is_online"] = self.wrs.is_profile_online(
                     room_id, p.profile_id
                 )
-
                 participant_response = RoomParticipantResponse.model_validate(
                     participant_dict
                 )

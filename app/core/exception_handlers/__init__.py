@@ -48,6 +48,7 @@ from app.core.exception_handlers.room import (
     participant_not_found_handler,
     room_exists_handler,
     room_full_handler,
+    room_max_participants_too_low_handler,
     room_not_found_handler,
     room_permission_handler,
     room_private_handler,
@@ -103,6 +104,7 @@ from app.core.exceptions.room import (
     ParticipantMutedError,
     RoomAlreadyExistsError,
     RoomFullError,
+    RoomMaxParticipantsTooLowError,
     RoomMessageNotFoundError,
     RoomNotFoundError,
     RoomParticipantNotFoundError,
@@ -148,6 +150,9 @@ def setup_exception_handlers(app: FastAPI):
     app.add_exception_handler(InvalidRoleError, invalid_role_handler)
     app.add_exception_handler(
         ParticipantAlreadyHasRoleError, participant_already_has_role_handler
+    )
+    app.add_exception_handler(
+        RoomMaxParticipantsTooLowError, room_max_participants_too_low_handler
     )
 
     # Исключения чат-рулетки

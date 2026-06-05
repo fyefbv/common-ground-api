@@ -24,3 +24,8 @@ class ProfileRepository(Repository):
 
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_by_ids(self, profile_ids: list[UUID]) -> list[Profile]:
+        stmt = select(self.model).where(self.model.id.in_(profile_ids))
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

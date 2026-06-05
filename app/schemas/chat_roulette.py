@@ -27,7 +27,7 @@ class ChatRouletteSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    profile1_id: UUID
+    profile1_id: UUID | None
     profile2_id: UUID | None
     matched_interest_id: UUID | None
     status: str
@@ -42,6 +42,7 @@ class ChatRouletteSessionResponse(BaseModel):
     time_remaining: int | None = None
     extension_approved_by_profile1: bool = False
     extension_approved_by_profile2: bool = False
+    partner_online: bool = False
 
 
 class ChatRouletteMessageCreate(BaseModel):
@@ -57,7 +58,7 @@ class ChatRouletteMessageCreate(BaseModel):
 
 class ChatRouletteMessageResponse(BaseModel):
     session_id: UUID
-    sender_id: UUID
+    sender_id: UUID | None
     content: str
     created_at: datetime
 
@@ -84,8 +85,8 @@ class ChatRouletteReportRequest(BaseModel):
     @field_validator("reason")
     @classmethod
     def reason_validation(cls, v):
-        if v is not None and len(v) < 10:
-            raise ValueError("Reason must be at least 10 characters if provided")
+        if v is not None and len(v) < 4:
+            raise ValueError("Reason must be at least 4 characters if provided")
         return v
 
     @field_validator("details")
@@ -94,13 +95,6 @@ class ChatRouletteReportRequest(BaseModel):
         if v is not None and len(v) < 20:
             raise ValueError("Details must be at least 20 characters if provided")
         return v
-
-
-class ChatRouletteStatisticsResponse(BaseModel):
-    total_sessions: int
-    completed_sessions: int
-    average_rating: float
-    completion_rate: float
 
 
 class ChatRouletteSearchResponse(BaseModel):

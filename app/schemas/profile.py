@@ -11,7 +11,7 @@ class ProfileBase(BaseModel):
 
 class ProfileCreate(ProfileBase):
     user_id: UUID | None = None
-    username: str = Field(..., min_length=3, max_length=40)
+    username: str = Field(..., min_length=3, max_length=20)
 
     @field_validator("username")
     @classmethod
@@ -26,7 +26,7 @@ class ProfileCreate(ProfileBase):
 
 
 class ProfileUpdate(ProfileBase):
-    username: str | None = Field(None, min_length=3, max_length=40)
+    username: str | None = Field(None, min_length=3, max_length=20)
 
     @field_validator("username")
     @classmethod
@@ -39,6 +39,10 @@ class ProfileUpdate(ProfileBase):
             if v.startswith("_") or v.endswith("_"):
                 raise ValueError("Username cannot start or end with underscore")
         return v
+
+
+class ProfileBatch(BaseModel):
+    profile_ids: list[UUID]
 
 
 class ProfileResponse(BaseModel):
@@ -63,3 +67,9 @@ class ProfileAvatarResponse(BaseModel):
 class UserProfile(BaseModel):
     user_id: UUID
     profile_id: UUID
+
+
+class ProfileStatisticsResponse(BaseModel):
+    total_sessions: int
+    reputation_score: float
+    total_rooms: int

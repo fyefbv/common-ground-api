@@ -61,15 +61,15 @@ class ChatRouletteSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    profile1_id: Mapped[uuid.UUID] = mapped_column(
+    profile1_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("profiles.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
-    profile2_id: Mapped[uuid.UUID] = mapped_column(
+    profile2_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("profiles.id", ondelete="CASCADE"),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

@@ -36,7 +36,7 @@ async def get_rooms(
     my_rooms: bool = Query(False),
     sort_by: str = Query("created_at", regex="^(created_at|participants)$"),
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int | None = Query(None, ge=1, le=200),
     offset: int = Query(0, ge=0),
     room_service: RoomService = Depends(get_room_service),
     user_profile: UserProfile = Depends(get_current_profile),
@@ -323,7 +323,7 @@ async def kick_participant(
 async def get_room_messages(
     room_id: UUID,
     before: datetime | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int | None = Query(None, ge=1, le=200),
     room_service: RoomService = Depends(get_room_service),
     user_profile: UserProfile = Depends(get_current_profile),
 ) -> RoomMessageListResponse:

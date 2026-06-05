@@ -27,8 +27,8 @@ def upgrade() -> None:
     op.create_table(
         'chat_roulette_sessions',
         sa.Column('id', sa.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('profile1_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False),
-        sa.Column('profile2_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True),
+        sa.Column('profile1_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+        sa.Column('profile2_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
         sa.Column('matched_interest_id', sa.UUID(as_uuid=True), sa.ForeignKey("interests.id", ondelete="SET NULL"), nullable=True),
         sa.Column('status', sa.String(length=20), nullable=False, server_default='WAITING'),
         sa.Column('duration_minutes', sa.Integer(), nullable=False, default=5),

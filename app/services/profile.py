@@ -14,6 +14,7 @@ from app.schemas.profile import (
     ProfileAvatarResponse,
     ProfileCreate,
     ProfileResponse,
+    ProfileStatisticsResponse,
     ProfileUpdate,
 )
 from app.schemas.profile_interest import ProfileInterestAdd, ProfileInterestDelete
@@ -63,17 +64,12 @@ class ProfileService:
             app_logger.info(f"Профиль создан с ID: {profile_to_return.id}")
             return profile_to_return
 
-    async def get_profile(
-        self,
-        username: str | None = None,
-        profile_id: UUID | None = None,
-    ) -> ProfileResponse:
+    async def get_profile(self, profile_id: UUID) -> ProfileResponse:
         """
-        Возвращает информацию о профиле по его username или profile_id.
+        Возвращает информацию о профиле по его идентификатору.
 
         Args:
-            username: Уникальное имя профиля (опционально)
-            profile_id: Идентификатор профиля (опционально)
+            profile_id: Идентификатор профиля
 
         Returns:
             ProfileResponse: Данные профиля, включая URL аватарки
@@ -81,25 +77,44 @@ class ProfileService:
         Raises:
             ProfileNotFoundError: Если профиль не найден
         """
-        if not profile_id and not username:
-            raise ValueError("Either profile_id or username must be provided")
-
-        app_logger.info(f"Получение профиля: {profile_id or username}")
+        app_logger.info(f"Получение профиля: {profile_id}")
         async with self.uow as uow:
-            if username:
-                profile = await uow.profile.find_one(username=username)
-                if not profile:
-                    raise ProfileNotFoundError(username)
-            else:
-                profile = await uow.profile.get_by_id(profile_id)
-                if not profile:
-                    raise ProfileNotFoundError(profile_id)
+            profile = await uow.profile.get_by_id(profile_id)
+            if not profile:
+                raise ProfileNotFoundError(profile_id)
 
             profile_to_return = ProfileResponse.model_validate(profile)
             profile_to_return.avatar_url = await self.oss.get_avatar_url(profile.id)
 
-            app_logger.info(f"Профиль {profile_id or username} найден")
+            app_logger.info(f"Профиль {profile_id} найден")
             return profile_to_return
+
+    async def get_profiles_by_ids(
+        self, profile_ids: list[UUID]
+    ) -> list[ProfileResponse]:
+        """
+        Возвращает профили по списку идентификаторов.
+
+        Args:
+            profile_ids: Список UUID профилей
+
+        Returns:
+            list[ProfileResponse]: Список найденных профилей с URL аватарок
+        """
+        app_logger.info(f"Получение профилей по IDs: {profile_ids}")
+        async with self.uow as uow:
+            profiles = await uow.profile.get_by_ids(profile_ids)
+            ids = [profile.id for profile in profiles]
+            avatar_urls = await self.oss.list_avatars(ids)
+
+            profiles_to_return = []
+            for profile in profiles:
+                profile_to_return = ProfileResponse.model_validate(profile)
+                profile_to_return.avatar_url = avatar_urls.get(profile.id)
+                profiles_to_return.append(profile_to_return)
+
+            app_logger.info(f"Найдено {len(profiles_to_return)} профилей по IDs")
+            return profiles_to_return
 
     async def get_profiles(self) -> list[ProfileResponse]:
         """
@@ -452,3 +467,36 @@ class ProfileService:
 
             if profile.user_id != user_id:
                 raise ProfilePermissionError(str(profile_id))
+
+    async def get_profile_statistics(
+        self, profile_id: UUID
+    ) -> ProfileStatisticsResponse:
+        """
+        Возвращает сводную статистику профиля.
+
+        Содержит:
+        - total_sessions: количество завершённых сессий чат-рулетки
+        - reputation_score: текущий рейтинг репутации профиля (0.0 – 5.0)
+        - total_rooms: количество комнат, в которых состоит профиль (включая созданные)
+
+        Args:
+            profile_id: Идентификатор профиля
+
+        Returns:
+            ProfileStatisticsResponse: объект с total_sessions, reputation_score, total_rooms
+        """
+        async with self.uow as uow:
+            profile = await uow.profile.get_by_id(profile_id)
+            if not profile:
+                raise ProfileNotFoundError(profile_id)
+
+            total_sessions = (
+                await uow.chat_roulette_session.get_total_completed_sessions(profile_id)
+            )
+            total_rooms = await uow.room_participant.count_rooms_for_profile(profile_id)
+
+            return ProfileStatisticsResponse(
+                total_sessions=total_sessions,
+                reputation_score=profile.reputation_score,
+                total_rooms=total_rooms,
+            )

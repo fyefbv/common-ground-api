@@ -12,8 +12,10 @@ from app.api.dependencies import (
 from app.schemas.interest import InterestResponse
 from app.schemas.profile import (
     ProfileAvatarResponse,
+    ProfileBatch,
     ProfileCreate,
     ProfileResponse,
+    ProfileStatisticsResponse,
     ProfileUpdate,
     UserProfile,
 )
@@ -104,24 +106,44 @@ async def get_current_profile_by_token(
     return await profile_service.get_profile(profile_id=user_profile.profile_id)
 
 
-@profiles_router.get("/{username}", response_model=ProfileResponse)
-async def get_profile(
-    username: str,
+@profiles_router.post("/batch", response_model=list[ProfileResponse])
+async def get_profiles_batch(
+    profile_batch: ProfileBatch,
+    profile_service: ProfileService = Depends(get_profile_service),
+    _: UUID = Depends(get_current_user),
+) -> list[ProfileResponse]:
+    """
+    Возвращает профили по списку идентификаторов.
+
+    Args:
+        profile_batch: Тело запроса со списком profile_ids
+        profile_service: Сервис профилей
+        _: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        list[ProfileResponse]: Список профилей с URL аватарок
+    """
+    return await profile_service.get_profiles_by_ids(profile_batch.profile_ids)
+
+
+@profiles_router.get("/by-id/{profile_id}", response_model=ProfileResponse)
+async def get_profile_by_id(
+    profile_id: UUID,
     profile_service: ProfileService = Depends(get_profile_service),
     _: UUID = Depends(get_current_user),
 ) -> ProfileResponse:
     """
-    Возвращает информацию о профиле по его username.
+    Возвращает информацию о профиле по его идентификатору.
 
     Args:
-        username: Уникальное имя профиля
-        profile_service: Сервис для управления профилями (инъекция зависимости)
-        _: Идентификатор текущего пользователя (требуется аутентификация)
+        profile_id: UUID профиля
+        profile_service: Сервис профилей
+        _: Текущий пользователь (требуется аутентификация)
 
     Returns:
         ProfileResponse: Данные профиля с URL аватарки
     """
-    return await profile_service.get_profile(username=username)
+    return await profile_service.get_profile(profile_id)
 
 
 @profiles_router.patch("/me", response_model=ProfileResponse)
@@ -342,3 +364,41 @@ async def delete_profile_interests(
         profile_interest_delete=profile_interest_delete,
     )
     return {"detail": "Profile interests deleted successfully"}
+
+
+@profiles_router.get("/me/statistics", response_model=ProfileStatisticsResponse)
+async def get_my_statistics(
+    profile_service: ProfileService = Depends(get_profile_service),
+    user_profile: UserProfile = Depends(get_current_profile),
+) -> ProfileStatisticsResponse:
+    """
+    Возвращает статистику текущего профиля пользователя.
+
+    Включает количество завершённых сессий чат-рулетки, репутацию,
+    количество комнат, в которых состоит профиль.
+
+    Args:
+        profile_service: Сервис для управления профилями (инъекция зависимости)
+        user_profile: Текущий профиль пользователя (инъекция зависимости)
+
+    Returns:
+        ProfileStatisticsResponse: Статистика профиля
+    """
+    return await profile_service.get_profile_statistics(user_profile.profile_id)
+
+
+@profiles_router.get(
+    "/by-id/{profile_id}/statistics", response_model=ProfileStatisticsResponse
+)
+async def get_profile_statistics(
+    profile_id: UUID,
+    profile_service: ProfileService = Depends(get_profile_service),
+    _: UUID = Depends(get_current_user),
+) -> ProfileStatisticsResponse:
+    """
+    Возвращает статистику профиля по его идентификатору.
+
+    Включает количество завершённых сессий чат-рулетки, репутацию,
+    количество комнат, в которых состоит профиль.
+    """
+    return await profile_service.get_profile_statistics(profile_id)

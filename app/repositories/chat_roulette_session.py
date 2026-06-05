@@ -232,27 +232,8 @@ class ChatRouletteSessionRepository(Repository):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def get_profile_statistics(self, profile_id: UUID) -> tuple[int, int, float]:
-        total_sessions_stmt = (
-            select(func.count())
-            .select_from(self.model)
-            .where(
-                or_(
-                    self.model.profile1_id == profile_id,
-                    self.model.profile2_id == profile_id,
-                ),
-                self.model.status.in_(
-                    [
-                        ChatRouletteSessionStatus.COMPLETED,
-                        ChatRouletteSessionStatus.LEFT,
-                    ]
-                ),
-            )
-        )
-        total_result = await self.session.execute(total_sessions_stmt)
-        total_sessions = total_result.scalar() or 0
-
-        completed_sessions_stmt = (
+    async def get_total_completed_sessions(self, profile_id: UUID) -> int:
+        stmt = (
             select(func.count())
             .select_from(self.model)
             .where(
@@ -263,30 +244,8 @@ class ChatRouletteSessionRepository(Repository):
                 self.model.status == ChatRouletteSessionStatus.COMPLETED,
             )
         )
-        completed_result = await self.session.execute(completed_sessions_stmt)
-        completed_sessions = completed_result.scalar() or 0
-
-        rating_stmt = select(func.avg(self.model.rating_from_2_to_1)).where(
-            self.model.profile1_id == profile_id,
-            self.model.rating_from_2_to_1.is_not(None),
-        )
-        rating_result = await self.session.execute(rating_stmt)
-        avg_rating = rating_result.scalar() or 0.0
-
-        rating2_stmt = select(func.avg(self.model.rating_from_1_to_2)).where(
-            self.model.profile2_id == profile_id,
-            self.model.rating_from_1_to_2.is_not(None),
-        )
-        rating2_result = await self.session.execute(rating2_stmt)
-        avg_rating2 = rating2_result.scalar() or 0.0
-
-        total_avg = (
-            (avg_rating + avg_rating2) / 2
-            if avg_rating > 0 and avg_rating2 > 0
-            else max(avg_rating, avg_rating2)
-        )
-
-        return total_sessions, completed_sessions, total_avg
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
     async def delete_waiting_sessions(self, profile_id: UUID) -> None:
         stmt = delete(self.model).where(
@@ -297,3 +256,23 @@ class ChatRouletteSessionRepository(Repository):
             self.model.status == ChatRouletteSessionStatus.WAITING,
         )
         await self.session.execute(stmt)
+
+    async def calculate_reputation(self, profile_id: UUID) -> float:
+        stmt1 = select(self.model.rating_from_2_to_1).where(
+            self.model.profile1_id == profile_id,
+            self.model.rating_from_2_to_1.is_not(None),
+        )
+        stmt2 = select(self.model.rating_from_1_to_2).where(
+            self.model.profile2_id == profile_id,
+            self.model.rating_from_1_to_2.is_not(None),
+        )
+
+        ratings = []
+        result1 = await self.session.execute(stmt1)
+        ratings.extend([row[0] for row in result1.all() if row[0] is not None])
+        result2 = await self.session.execute(stmt2)
+        ratings.extend([row[0] for row in result2.all() if row[0] is not None])
+
+        if not ratings:
+            return 0.0
+        return round(sum(ratings) / len(ratings), 2)

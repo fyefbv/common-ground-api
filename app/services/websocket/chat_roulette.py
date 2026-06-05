@@ -88,9 +88,7 @@ class WebSocketChatRouletteService:
             sender_profile_id=requesting_profile_id,
         )
 
-        await roulette_connection_manager.send_personal_message(
-            event.to_dict(), session_id, partner_profile_id
-        )
+        await roulette_connection_manager.broadcast(event.to_dict(), session_id)
         app_logger.info(
             f"Запрос на продление сессии {session_id} отправлен партнеру {partner_profile_id}"
         )
@@ -109,41 +107,49 @@ class WebSocketChatRouletteService:
             sender_profile_id=approving_profile_id,
         )
 
-        await roulette_connection_manager.send_personal_message(
-            event.to_dict(), session_id, partner_profile_id
-        )
+        await roulette_connection_manager.broadcast(event.to_dict(), session_id)
         app_logger.info(
             f"Подтверждение продления сессии {session_id} отправлено партнеру {partner_profile_id}"
         )
 
-    async def broadcast_session_reported(
-        self,
-        session_id: UUID,
-        reporter_profile_id: UUID,
-        reported_profile_id: UUID,
-        reason: str,
+    async def broadcast_extension_rejected(
+        self, session_id: UUID, rejecting_profile_id: UUID, requesting_profile_id: UUID
     ):
         event = ChatRouletteWebSocketMessage(
-            type=ChatRouletteEventType.SESSION_ENDED,
+            type=ChatRouletteEventType.EXTENSION_REJECTED,
             data={
                 "session_id": str(session_id),
-                "reporter_profile_id": str(reporter_profile_id),
-                "reported_profile_id": str(reported_profile_id),
-                "reason": f"Reported: {reason}",
-                "is_reported": True,
+                "rejecting_profile_id": str(rejecting_profile_id),
             },
             timestamp=datetime.now(timezone.utc),
             session_id=session_id,
-            sender_profile_id=reporter_profile_id,
+            sender_profile_id=rejecting_profile_id,
+        )
+        await roulette_connection_manager.broadcast(event.to_dict(), session_id)
+        app_logger.info(
+            f"Отказ в продлении сессии {session_id} отправлен инициатору {requesting_profile_id}"
         )
 
+    async def broadcast_extension_cancelled(
+        self, session_id: UUID, cancelling_profile_id: UUID, partner_profile_id: UUID
+    ):
+        event = ChatRouletteWebSocketMessage(
+            type=ChatRouletteEventType.EXTENSION_CANCELLED,
+            data={
+                "session_id": str(session_id),
+                "cancelling_profile_id": str(cancelling_profile_id),
+            },
+            timestamp=datetime.now(timezone.utc),
+            session_id=session_id,
+            sender_profile_id=cancelling_profile_id,
+        )
         await roulette_connection_manager.broadcast(event.to_dict(), session_id)
-
-        participants = roulette_connection_manager.get_session_participants(session_id)
-        for participant_id in participants:
-            roulette_connection_manager.disconnect(session_id, participant_id)
-
-        app_logger.info(f"Репорт сессии {session_id} разослан через WebSocket")
+        app_logger.info(
+            f"Отмена запроса на продление сессии {session_id} для партнёра {partner_profile_id}"
+        )
 
     def get_session_participants(self, session_id: UUID) -> list[UUID]:
         return roulette_connection_manager.get_session_participants(session_id)
+
+    def is_profile_connected(self, session_id: UUID, profile_id: UUID) -> bool:
+        return roulette_connection_manager.is_profile_connected(session_id, profile_id)

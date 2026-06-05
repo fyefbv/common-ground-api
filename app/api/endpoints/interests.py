@@ -4,7 +4,7 @@ from app.api.dependencies import (
     get_accept_language,
     get_interest_service,
 )
-from app.schemas.interest import InterestResponse
+from app.schemas.interest import InterestBatch, InterestResponse
 from app.services.interest import InterestService
 
 interests_router = APIRouter(prefix="/interests", tags=["Интересы"])
@@ -26,3 +26,25 @@ async def get_interests(
         list[InterestResponse]: Список интересов с переведёнными названиями
     """
     return await interest_service.get_interests(accept_language)
+
+
+@interests_router.post("/batch", response_model=list[InterestResponse])
+async def get_interests_batch(
+    interest_batch: InterestBatch,
+    interest_service: InterestService = Depends(get_interest_service),
+    accept_language: str = Depends(get_accept_language),
+) -> list[InterestResponse]:
+    """
+    Возвращает список интересов по переданным идентификаторам с локализованными названиями.
+
+    Args:
+        request: Тело запроса со списком interest_ids
+        interest_service: Сервис работы с интересами (инъекция зависимости)
+        accept_language: Код языка для локализации (например, 'ru', 'en')
+
+    Returns:
+        list[InterestResponse]: Список интересов с переведёнными названиями
+    """
+    return await interest_service.get_interests_by_ids(
+        interest_batch.interest_ids, accept_language
+    )

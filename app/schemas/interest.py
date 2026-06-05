@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class InterestResponse(BaseModel):
@@ -8,3 +8,7 @@ class InterestResponse(BaseModel):
 
     id: UUID
     name: str
+
+
+class InterestBatch(BaseModel):
+    interest_ids: list[UUID] = Field(..., min_length=1, max_length=50)

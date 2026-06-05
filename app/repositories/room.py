@@ -15,11 +15,11 @@ class RoomRepository(Repository):
         query: str | None = None,
         interest_ids: list[UUID] | None = None,
         tags: list[str] | None = None,
-        creator_id: UUID | None = None,
-        is_private: bool | None = False,
+        participant_id: UUID | None = None,
+        only_participant_rooms: bool = False,
         sort_by: str = "created_at",
         sort_order: str = "desc",
-        limit: int = 50,
+        limit: int | None = None,
         offset: int = 0,
     ) -> list[Room]:
         stmt = select(self.model)
@@ -36,14 +36,29 @@ class RoomRepository(Repository):
             stmt = stmt.where(self.model.primary_interest_id.in_(interest_ids))
 
         if tags:
-            for tag in tags:
-                stmt = stmt.where(self.model.tags.contains([tag]))
+            stmt = stmt.where(self.model.tags.op("&&")(tags))
 
-        if creator_id:
-            stmt = stmt.where(self.model.creator_id == creator_id)
+        if participant_id is not None:
+            participant_room_subq = (
+                select(RoomParticipant.room_id)
+                .where(
+                    RoomParticipant.profile_id == participant_id,
+                    RoomParticipant.is_banned == False,
+                )
+                .subquery()
+            )
 
-        if is_private is not None:
-            stmt = stmt.where(self.model.is_private == is_private)
+            if only_participant_rooms:
+                stmt = stmt.where(self.model.id.in_(select(participant_room_subq)))
+            else:
+                stmt = stmt.where(
+                    or_(
+                        self.model.is_private == False,
+                        self.model.id.in_(select(participant_room_subq)),
+                    )
+                )
+        else:
+            stmt = stmt.where(self.model.is_private == False)
 
         if sort_by == "participants":
             participants_subq = (
@@ -64,17 +79,29 @@ class RoomRepository(Repository):
         else:
             stmt = stmt.order_by(order_col.desc())
 
-        stmt = stmt.limit(limit).offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
+        stmt = stmt.offset(offset)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
     async def get_all_tags(self, profile_id: UUID) -> list[str]:
+        participant_rooms_subq = (
+            select(RoomParticipant.room_id)
+            .where(
+                RoomParticipant.profile_id == profile_id,
+                RoomParticipant.is_banned == False,
+            )
+            .subquery()
+        )
+
         stmt = (
             select(func.unnest(self.model.tags).label("tag"))
             .where(
                 or_(
                     self.model.is_private == False,
-                    self.model.creator_id == profile_id,
+                    self.model.id.in_(select(participant_rooms_subq)),
                 )
             )
             .distinct()
