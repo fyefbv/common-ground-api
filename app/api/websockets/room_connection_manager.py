@@ -19,6 +19,16 @@ class RoomConnectionManager:
         if room_id not in self.active_connections:
             self.active_connections[room_id] = {}
 
+        if profile_id in self.active_connections[room_id]:
+            old_ws = self.active_connections[room_id][profile_id]
+            try:
+                await old_ws.close(code=1000, reason="Replaced by new connection")
+            except Exception:
+                pass
+            app_logger.warning(
+                f"WebSocket: заменено старое соединение для profile_id={profile_id}, room_id={room_id}"
+            )
+
         self.active_connections[room_id][profile_id] = websocket
 
         if profile_id not in self.profile_rooms:

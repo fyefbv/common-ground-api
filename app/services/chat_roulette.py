@@ -59,7 +59,7 @@ class ChatRouletteService:
         """
         Запускает поиск партнёра для чат-рулетки.
 
-        Проверяет наличие активных поисков или сессий у профиля.
+        Если предыдущий поиск всё ещё активен, он автоматически отменяется.
         Если найден подходящий партнёр по интересам, сразу создаёт сессию.
         Если нет - запускает фоновый поиск на 20 секунд.
 
@@ -72,7 +72,6 @@ class ChatRouletteService:
 
         Raises:
             ProfileNotFoundError: Если профиль не найден
-            AlreadyInSearchError: Если у профиля уже есть активный поиск
             AlreadyInSessionError: Если у профиля уже есть активная сессия
             NoMatchingFoundError: Если не найдено совпадений за отведённое время
         """
@@ -87,7 +86,20 @@ class ChatRouletteService:
                 profile_id=profile_id, is_active=True
             )
             if existing_search:
-                raise AlreadyInSearchError()
+                await uow.chat_roulette_search.deactivate_search(profile_id)
+                existing_session = await uow.chat_roulette_session.find_session_by_profile(
+                    profile_id, include_completed=False
+                )
+                if existing_session and existing_session.status == ChatRouletteSessionStatus.WAITING:
+                    await uow.chat_roulette_session.update_session_status(
+                        existing_session.id,
+                        ChatRouletteSessionStatus.CANCELLED,
+                        "Replaced by new search",
+                    )
+                await uow.commit()
+                app_logger.info(
+                    f"Автоматически отменён предыдущий поиск для профиля {profile_id}"
+                )
 
             existing_session = (
                 await uow.chat_roulette_session.find_active_session_by_profile(
@@ -202,7 +214,7 @@ class ChatRouletteService:
                 await uow.chat_roulette_search.deactivate_search(profile_id)
                 await uow.commit()
                 raise NoMatchingFoundError()
-
+        
     async def cancel_search(self, profile_id: UUID) -> bool:
         """
         Отменяет активный поиск партнёра для указанного профиля.

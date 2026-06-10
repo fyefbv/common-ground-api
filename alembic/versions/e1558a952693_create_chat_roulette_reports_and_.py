@@ -17,7 +17,7 @@ def upgrade() -> None:
     op.create_table(
         'chat_roulette_reports',
         sa.Column('id', sa.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('session_id', sa.UUID(as_uuid=True), sa.ForeignKey("chat_roulette_sessions.id", ondelete="CASCADE")),
+        sa.Column('session_id', sa.UUID(as_uuid=True), sa.ForeignKey("chat_roulette_sessions.id", ondelete="CASCADE"), nullable=False),
         sa.Column('reporter_profile_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
         sa.Column('reported_profile_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
         sa.Column('reason', sa.String(length=100)),
@@ -28,9 +28,9 @@ def upgrade() -> None:
     op.create_table(
         'chat_roulette_messages',
         sa.Column('id', sa.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('session_id', sa.UUID(as_uuid=True), sa.ForeignKey("chat_roulette_sessions.id", ondelete="CASCADE")),
+        sa.Column('session_id', sa.UUID(as_uuid=True), sa.ForeignKey("chat_roulette_sessions.id", ondelete="CASCADE"), nullable=False),
         sa.Column('sender_profile_id', sa.UUID(as_uuid=True), sa.ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
-        sa.Column('content', sa.Text()),
+        sa.Column('content', sa.Text(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)),
     )
 
