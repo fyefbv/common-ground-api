@@ -99,7 +99,6 @@ async def websocket_roulette_chat(
             await roulette_connection_manager.send_personal_message(
                 partner_connected_event.to_dict(), session_id, partner_profile_id
             )
-
             await roulette_connection_manager.send_personal_message(
                 partner_connected_event.to_dict(), session_id, profile_id
             )
@@ -148,11 +147,9 @@ async def websocket_roulette_chat(
                         partner_profile_id,
                     )
 
-                roulette_connection_manager.disconnect(session_id, profile_id)
                 break
             except Exception as e:
                 app_logger.error(f"Ошибка получения сообщения WebSocket: {e}")
-                roulette_connection_manager.disconnect(session_id, profile_id)
                 break
 
             try:
@@ -210,8 +207,7 @@ async def websocket_roulette_chat(
                 partner_disconnected_event.to_dict(), session_id, partner_profile_id
             )
 
-        roulette_connection_manager.disconnect(session_id, profile_id)
-
     except Exception as e:
         app_logger.error(f"Непредвиденная ошибка WebSocket: {e}")
+    finally:
         roulette_connection_manager.disconnect(session_id, profile_id)

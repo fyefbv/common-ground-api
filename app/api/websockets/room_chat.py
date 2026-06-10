@@ -96,11 +96,9 @@ async def websocket_room_chat(
                 app_logger.info(
                     f"WebSocket отключен: профиль={profile_id}, комната={room_id}"
                 )
-                await room_connection_manager.disconnect(room_id, profile_id)
                 break
             except Exception as e:
                 app_logger.error(f"Ошибка получения сообщения WebSocket: {e}")
-                await room_connection_manager.disconnect(room_id, profile_id)
                 break
 
             try:
@@ -142,8 +140,7 @@ async def websocket_room_chat(
 
     except WebSocketDisconnect:
         app_logger.info(f"WebSocket отключен: профиль={profile_id}, комната={room_id}")
-        await room_connection_manager.disconnect(room_id, profile_id)
-
     except Exception as e:
         app_logger.error(f"Непредвиденная ошибка WebSocket: {e}")
+    finally:
         await room_connection_manager.disconnect(room_id, profile_id)
